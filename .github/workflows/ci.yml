@@ -1,0 +1,61 @@
+name: KKU Dating CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-test:
+    name: Backend Lint & Test
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Run Backend Health Check
+        working-directory: ./backend
+        env:
+          MONGODB_URI: mongodb://localhost:27017/kku-dating-test
+          PORT: 3000
+        run: |
+          node server.js &
+          sleep 3
+          curl -f http://localhost:3000/api/health || exit 1
+          kill %1
+
+  mobile-check:
+    name: Mobile Lint Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Mobile Dependencies
+        working-directory: ./mobile
+        run: npm install
+
+      - name: Check Expo Config
+        working-directory: ./mobile
+        run: npx expo config --type public

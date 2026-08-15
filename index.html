@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>KKU Dating - แอปหาคู่ มข.</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+  <!-- Socket.io Client Script -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+
+  <div id="app-container">
+    <!-- Header Navigation -->
+    <header class="app-header">
+      <div class="brand" onclick="switchTab('explore')">
+        <div class="brand-logo">
+          <i class="fa-solid fa-heart-pulse"></i>
+        </div>
+        <span class="brand-title">KKU Dating</span>
+      </div>
+      <nav class="nav-tabs">
+        <button class="nav-btn active" id="tab-explore" onclick="switchTab('explore')" title="หน้าหลัก ปัดโปรไฟล์">
+          <i class="fa-solid fa-fire"></i>
+        </button>
+        <button class="nav-btn" onclick="resetCards()" title="รีโหลดโปรไฟล์ใหม่" style="color: var(--accent-gold);">
+          <i class="fa-solid fa-rotate-right"></i>
+        </button>
+        <button class="nav-btn" id="tab-matches" onclick="switchTab('matches')" title="แชท & แมตช์">
+          <i class="fa-solid fa-comments"></i>
+          <span class="badge-count" id="match-badge">0</span>
+        </button>
+        <button class="nav-btn" id="tab-profile" onclick="switchTab('profile')" title="แก้ไขโปรไฟล์">
+          <i class="fa-solid fa-user"></i>
+        </button>
+        <button class="nav-btn" id="tab-backend" onclick="switchTab('backend')" title="ระบบหลังบ้าน & Database">
+          <i class="fa-solid fa-database"></i>
+        </button>
+      </nav>
+    </header>
+
+    <!-- Views Container -->
+    <div class="views-wrapper">
+      
+      <!-- 1. EXPLORE SWIPE VIEW -->
+      <section class="view-page active" id="view-explore">
+        <div class="swipe-container">
+          <!-- Card Stack -->
+          <div class="card-stack" id="card-stack">
+            <!-- Dynamic cards rendered by JS -->
+          </div>
+
+          <!-- Empty Stack State -->
+          <div class="empty-stack" id="empty-stack" style="display: none;">
+            <div class="empty-icon"><i class="fa-solid fa-heart-crack"></i></div>
+            <h3>ไม่มีโปรไฟล์เพิ่มเติมแล้ว</h3>
+            <p style="color: var(--text-muted); margin-top: 8px; font-size: 0.9rem;">
+              คุณได้ดูโปรไฟล์ทั้งหมดใน มข. แล้ว ลองรีโหลดเพื่อดูโปรไฟล์ใหม่ที่ลงทะเบียนเข้ามา
+            </p>
+            <button class="reload-btn" onclick="resetCards()">
+              <i class="fa-solid fa-rotate-right"></i> รีโหลดโปรไฟล์ใหม่
+            </button>
+          </div>
+
+          <!-- Bottom Swiping Controls Bar -->
+          <div class="action-bar" id="action-bar">
+            <button class="action-btn rewind-btn" onclick="triggerRewind()" title="ย้อนกลับ">
+              <i class="fa-solid fa-rotate-left"></i>
+            </button>
+            <button class="action-btn pass-btn" onclick="triggerSwipe('left')" title="ไม่ชอบ (Pass)">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+            <button class="action-btn super-btn" onclick="triggerSwipe('super')" title="ซูเปอร์ไลค์ (Super Like)">
+              <i class="fa-solid fa-star"></i>
+            </button>
+            <button class="action-btn like-btn" onclick="triggerSwipe('right')" title="ชอบ (Like)">
+              <i class="fa-solid fa-heart"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. MATCHES & CHAT LIST VIEW -->
+      <section class="view-page" id="view-matches">
+        <div class="matches-view">
+          <div class="section-title">แมตช์ใหม่ของคุณ (New Matches)</div>
+          <div class="new-matches-scroll" id="new-matches-container">
+            <!-- Rendered by JS -->
+          </div>
+
+          <div class="section-title">ข้อความแชท (Messages)</div>
+          <div class="chats-list" id="chats-list-container">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. MY PROFILE EDITOR VIEW -->
+      <section class="view-page" id="view-profile">
+        <div class="profile-edit-view">
+          <h2 style="font-size: 1.3rem; margin-bottom: 16px; color: var(--accent-gold);">
+            <i class="fa-solid fa-user-pen"></i> โปรไฟล์ KKU Dating ของฉัน
+          </h2>
+
+          <div class="profile-card-edit" style="text-align: center;">
+            <img id="my-profile-img-preview" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80" style="width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent-gold); margin-bottom: 10px;">
+            <h3 id="my-profile-name-display" style="font-size: 1.1rem; color: #FFF;">น้องหมอ บีม</h3>
+            <div id="my-profile-faculty-display" style="font-size: 0.85rem; color: var(--text-muted);">🩺 คณะแพทยศาสตร์</div>
+          </div>
+
+          <div class="profile-card-edit">
+            <div class="form-group">
+              <label class="form-label">รูปภาพโปรไฟล์ (เลือกไฟล์จากเครื่อง)</label>
+              <label class="media-upload-box" style="aspect-ratio: auto; height: 50px; flex-direction: row; font-size: 0.85rem;">
+                <i class="fa-solid fa-file-image" style="font-size: 1.2rem; color: var(--accent-gold);"></i>
+                <span>คลิกเปลี่ยนรูปภาพจากเครื่อง...</span>
+                <input type="file" id="edit-img-file" accept="image/*" style="display: none;" onchange="handleEditImageSelect(event)">
+              </label>
+            </div>
+            <div class="form-group">
+              <label class="form-label">ชื่อที่แสดง (Display Name)</label>
+              <input type="text" id="edit-profile-name" class="form-input" value="น้องหมอ บีม">
+            </div>
+            <div class="form-group">
+              <label class="form-label">คณะ (KKU Faculty)</label>
+              <select id="edit-profile-faculty" class="form-select">
+                <option value="🩺 คณะแพทยศาสตร์">🩺 คณะแพทยศาสตร์</option>
+                <option value="⚙️ คณะวิศวกรรมศาสตร์">⚙️ คณะวิศวกรรมศาสตร์</option>
+                <option value="🎨 คณะศิลปกรรมศาสตร์">🎨 คณะศิลปกรรมศาสตร์</option>
+                <option value="💼 คณะบริหารธุรกิจและการบัญชี">💼 คณะบริหารธุรกิจและการบัญชี</option>
+                <option value="🏛 คณะสถาปัตยกรรมศาสตร์">🏛 คณะสถาปัตยกรรมศาสตร์</option>
+                <option value="🧬 คณะวิทยาศาสตร์">🧬 คณะวิทยาศาสตร์</option>
+                <option value="📚 คณะมนุษยศาสตร์และสังคมศาสตร์">📚 คณะมนุษยศาสตร์และสังคมศาสตร์</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">คำแนะนำตัว (Bio & Intro)</label>
+              <textarea id="edit-profile-bio" class="form-textarea">นศ.แพทย์ ชอบกินกาแฟหลัง ม. แวะมาชวนไปวิ่งบึงสีฐานได้นะ ☕️🏃‍♂️</textarea>
+            </div>
+            <button class="reload-btn" onclick="saveProfileChanges()" style="width: 100%;">
+              <i class="fa-solid fa-floppy-disk"></i> บันทึกการเปลี่ยนแปลง
+            </button>
+          </div>
+
+          <div class="profile-card-edit" style="text-align: center;">
+            <button class="reload-btn" onclick="showRegisterModal()" style="background: rgba(59, 130, 246, 0.2); border: 1px solid var(--super-color); color: #93C5FD; width: 100%; margin-bottom: 8px;">
+              <i class="fa-solid fa-user-plus"></i> สร้างโปรไฟล์ใหม่สำหรับเครื่องนี้
+            </button>
+            <button class="reload-btn" onclick="resetAllData()" style="background: rgba(239, 68, 68, 0.2); border: 1px solid var(--pass-color); color: #FF8888; width: 100%;">
+              <i class="fa-solid fa-trash-can"></i> รีเซ็ตข้อมูลเครื่องนี้
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. BACKEND & DATABASE EXPLORER VIEW -->
+      <section class="view-page" id="view-backend">
+        <div class="backend-explorer-view">
+          <h2 style="font-size: 1.2rem; color: var(--accent-gold); margin-bottom: 12px;">
+            <i class="fa-solid fa-network-wired"></i> เชื่อมต่อหลายเครื่อง (Multi-Device Setup)
+          </h2>
+          
+          <div class="profile-card-edit">
+            <h3 style="font-size: 0.95rem; color: #FFF; margin-bottom: 6px;"><i class="fa-solid fa-wifi"></i> วิธีให้เครื่องอื่น/มือถือเข้ามาเล่นด้วยกัน</h3>
+            <ol style="font-size: 0.85rem; color: var(--text-muted); padding-left: 18px; line-height: 1.6;">
+              <li>เปิด PowerShell ในคอมพิวเตอร์หลักแล้วรัน: <code style="color: #A7F3D0;">node server/server.js</code></li>
+              <li>เชื่อมต่อ Wi-Fi เดียวกัน แล้วพิมพ์ IP ในเครื่องอื่น: <br><b style="color: var(--accent-gold);">http://&lt;IP_เครื่องคุณ&gt;:3000</b></li>
+              <li><b>เปิดผ่านอินเทอร์เน็ต</b> (คนละ Wi-Fi): เปิดเทอร์มินัลแล้วรัน: <br><code style="color: #A7F3D0;">npx localtunnel --port 3000</code> แล้วส่งลิงก์ HTTPS ให้เพื่อนเล่นได้ทันที!</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- REGISTER NEW PROFILE MODAL FOR MULTI-USER -->
+    <div class="conversation-modal" id="register-modal" style="z-index: 150;">
+      <div class="chat-navbar">
+        <div class="brand">
+          <div class="brand-logo"><i class="fa-solid fa-heart-pulse"></i></div>
+          <span class="brand-title">สร้างโปรไฟล์ KKU Dating</span>
+        </div>
+      </div>
+      <div class="profile-edit-view" style="flex: 1;">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">
+          ยินดีต้อนรับสู่ KKU Dating! กรุณาสร้างโปรไฟล์สำหรับเครื่องของคุณเพื่อเริ่มเล่นและคุยกับเพื่อนในระบบ
+        </p>
+        <div class="form-group">
+          <label class="form-label">ชื่อที่แสดง (Display Name)</label>
+          <input type="text" id="reg-name" class="form-input" placeholder="เช่น น้องแพรว วิศวะ">
+        </div>
+        <div class="form-group">
+          <label class="form-label">คณะ (KKU Faculty)</label>
+          <select id="reg-faculty" class="form-select">
+            <option value="⚙️ คณะวิศวกรรมศาสตร์">⚙️ คณะวิศวกรรมศาสตร์</option>
+            <option value="🩺 คณะแพทยศาสตร์">🩺 คณะแพทยศาสตร์</option>
+            <option value="🎨 คณะศิลปกรรมศาสตร์">🎨 คณะศิลปกรรมศาสตร์</option>
+            <option value="💼 คณะบริหารธุรกิจและการบัญชี">💼 คณะบริหารธุรกิจและการบัญชี</option>
+            <option value="🏛 คณะสถาปัตยกรรมศาสตร์">🏛 คณะสถาปัตยกรรมศาสตร์</option>
+            <option value="🧬 คณะวิทยาศาสตร์">🧬 คณะวิทยาศาสตร์</option>
+            <option value="📚 คณะมนุษยศาสตร์และสังคมศาสตร์">📚 คณะมนุษยศาสตร์และสังคมศาสตร์</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">คำแนะนำตัว (Bio)</label>
+          <textarea id="reg-bio" class="form-textarea" placeholder="แนะนำตัวสั้นๆ ชวนไปไหน..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">รูปภาพโปรไฟล์ (เลือกรูปภาพจากในเครื่องคอม/มือถือ)</label>
+          <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
+            <img id="reg-img-preview" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80" style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-gold);">
+            <label class="media-upload-box" style="flex: 1; aspect-ratio: auto; height: 50px; flex-direction: row; font-size: 0.85rem; margin-top: 0;">
+              <i class="fa-solid fa-folder-open" style="font-size: 1.1rem; color: var(--accent-gold);"></i>
+              <span id="reg-file-name-display">เลือกรูปภาพจากเครื่อง...</span>
+              <input type="file" id="reg-img-file" accept="image/*" style="display: none;" onchange="handleRegImageSelect(event)">
+            </label>
+          </div>
+        </div>
+        <button class="reload-btn" onclick="submitRegistration()" style="width: 100%; padding: 14px; font-size: 1rem; margin-top: 10px;">
+          🚀 สร้างโปรไฟล์และเข้าใช้งาน
+        </button>
+      </div>
+    </div>
+
+    <!-- CHAT CONVERSATION MODAL OVERLAY -->
+    <div class="conversation-modal" id="conversation-modal">
+      <div class="chat-navbar">
+        <button class="back-btn" onclick="closeChatModal()"><i class="fa-solid fa-chevron-left"></i></button>
+        <div class="chat-partner-info">
+          <img class="partner-avatar" id="chat-partner-img" src="" alt="Partner">
+          <div>
+            <div class="partner-name" id="chat-partner-name">User</div>
+            <div class="partner-faculty" id="chat-partner-faculty">Faculty</div>
+          </div>
+        </div>
+      </div>
+      <div class="messages-body" id="chat-messages-body">
+        <!-- Messages rendered by JS -->
+      </div>
+      <div class="chat-input-bar">
+        <input type="text" class="chat-input" id="chat-input-field" placeholder="พิมพ์ข้อความทักทาย..." onkeypress="handleKeyPress(event)">
+        <button class="send-btn" onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+      </div>
+    </div>
+
+    <!-- MATCH POPUP OVERLAY -->
+    <div class="match-overlay" id="match-overlay">
+      <div class="match-title">IT'S A MATCH! 🎉</div>
+      <div class="match-subtitle">คุณและคู่ของคุณใจตรงกันใน KKU Dating!</div>
+      <div class="matched-avatars">
+        <img class="m-avatar" id="match-my-img" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80" alt="Me">
+        <img class="m-avatar" id="match-target-img" src="" alt="Matched User">
+      </div>
+      <button class="match-action-btn btn-primary-match" onclick="openChatFromMatch()">
+        <i class="fa-solid fa-comment-dots"></i> ส่งข้อความทักเลย
+      </button>
+      <button class="match-action-btn btn-secondary-match" onclick="closeMatchModal()">
+        ปัดหาคนอื่นต่อ
+      </button>
+    </div>
+
+  </div>
+
+  <!-- App Main JavaScript Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

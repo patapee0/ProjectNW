@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "KKU Dating",
+    "slug": "kku-dating",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0F172A"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.kkudating.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#8B0000"
+      },
+      "package": "com.kkudating.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

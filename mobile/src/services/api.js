@@ -1,0 +1,108 @@
+/**
+ * API Service — REST API calls to Backend
+ * รองรับทั้ง PC (localhost) และ Mobile (IP: 192.168.1.42)
+ */
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+
+// IP ของเครื่องคอมพิวเตอร์ในวง Wi-Fi
+const PC_LAN_IP = '192.168.1.42';
+
+function getBaseUrl() {
+  // บน Web Browser ใช้ localhost:3000
+  if (Platform.OS === 'web') {
+    return 'http://localhost:3000';
+  }
+
+  // บน Mobile (Expo Go): ลองดึง IP จาก Expo Host
+  const debuggerHost =
+    Constants.expoGoConfig?.debuggerHost ??
+    Constants.expoConfig?.hostUri ??
+    null;
+
+  if (debuggerHost) {
+    const host = debuggerHost.split(':')[0];
+    if (host && !host.includes('exp.direct') && !host.includes('expo.dev') && host !== 'localhost' && !host.startsWith('127.')) {
+      return `http://${host}:3000`;
+    }
+  }
+
+  // ใช้ IP ของคอมพิวเตอร์ในวง Wi-Fi เดียวกัน
+  return `http://${PC_LAN_IP}:3000`;
+}
+
+export const API_URL = getBaseUrl();
+const BASE_URL = API_URL;
+
+// ดึงโปรไฟล์ทั้งหมด
+export async function fetchProfiles() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/profiles`);
+    const data = await res.json();
+    if (data.success) {
+      return data.profiles;
+    }
+    return [];
+  } catch (err) {
+    console.log('API fetchProfiles error:', err.message);
+    return [];
+  }
+}
+
+// ลงทะเบียนโปรไฟล์
+export async function registerProfile(profileData) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/profiles/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profileData),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.log('API registerProfile error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// บันทึก swipe action
+export async function recordSwipe(swiperId, swipedId, action) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/swipes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ swiperId, swipedId, action }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.log('API recordSwipe error:', err.message);
+    return { success: false };
+  }
+}
+
+// ดึงข้อความแชท
+export async function fetchMessages(userId1, userId2) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/messages/conversation/${userId1}/${userId2}`);
+    const data = await res.json();
+    if (data.success) {
+      return data.messages;
+    }
+    return [];
+  } catch (err) {
+    console.log('API fetchMessages error:', err.message);
+    return [];
+  }
+}
+
+// Health check
+export async function healthCheck() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/health`);
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    return { status: 'offline' };
+  }
+}
