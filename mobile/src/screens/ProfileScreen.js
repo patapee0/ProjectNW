@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { COLORS, RADIUS, SHADOWS } from '../constants/colors';
 import { KKU_FACULTIES } from '../constants/faculties';
-import { registerProfile } from '../services/api';
+import { registerProfile, verifyKkuMail, linkSocialMedia } from '../services/api';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -21,6 +21,36 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState(myProfile?.bio || '');
   const [photoUrl, setPhotoUrl] = useState(myProfile?.img || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80');
   const [showFacultyPicker, setShowFacultyPicker] = useState(false);
+  const [kkuEmail, setKkuEmail] = useState('patapee.s@kkumail.com');
+  const [fbHandle, setFbHandle] = useState('fb.com/patapee.kk');
+  const [igHandle, setIgHandle] = useState('@beam_kkup');
+
+  async function handleVerifyKku() {
+    if (!kkuEmail || !kkuEmail.endsWith('@kkumail.com')) {
+      Alert.alert('ข้อผิดพลาด', 'โปรดใส่อีเมลมหาวิทยาลัยขอนแก่น (@kkumail.com)');
+      return;
+    }
+    const res = await verifyKkuMail(kkuEmail);
+    if (res.success) {
+      Alert.alert('ยืนยันสำเร็จ! 🎉', `${res.message}\nรหัสนักศึกษา: ${res.user.studentId}`);
+    } else {
+      Alert.alert('ข้อผิดพลาด', res.message);
+    }
+  }
+
+  async function handleLinkSocial(platform) {
+    const handle = platform === 'facebook' ? fbHandle : igHandle;
+    if (!handle) {
+      Alert.alert('ข้อผิดพลาด', `โปรดระบุ ${platform.toUpperCase()} handle`);
+      return;
+    }
+    const res = await linkSocialMedia(platform, handle);
+    if (res.success) {
+      Alert.alert('เชื่อมต่อสำเร็จ ✅', `${res.message}\nInterests: ${res.socialData.enrichedInterests.join(', ')}`);
+    } else {
+      Alert.alert('ข้อผิดพลาด', res.message);
+    }
+  }
 
   // เลือกรูปภาพจากเครื่อง
   async function pickImage() {
@@ -174,6 +204,81 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.saveBtn} onPress={saveChanges}>
           <Text style={styles.saveBtnText}>💾 บันทึกการเปลี่ยนแปลง</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* KKU Student Verification Card */}
+      <View style={[styles.formCard, { backgroundColor: 'rgba(165,28,48,0.15)', borderColor: 'rgba(255,215,0,0.4)', borderWidth: 1 }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ color: COLORS.accentGold, fontWeight: '700', fontSize: 14 }}>🎓 ยืนยันตัวตน KKU Student</Text>
+          <View style={{ backgroundColor: 'rgba(16,185,129,0.2)', borderWidth: 1, borderColor: '#10B981', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+            <Text style={{ color: '#34D399', fontSize: 10, fontWeight: '700' }}>✓ VERIFIED</Text>
+          </View>
+        </View>
+        <Text style={{ color: COLORS.textMuted, fontSize: 12, marginBottom: 10 }}>
+          ยืนยันบัญชี KKU Mail (@kkumail.com) เพื่อรับสัญลักษณ์ยืนยันตัวตน
+        </Text>
+        <TextInput
+          style={[styles.input, { marginBottom: 8 }]}
+          value={kkuEmail}
+          onChangeText={setKkuEmail}
+          placeholder="student@kkumail.com"
+          placeholderTextColor={COLORS.textMuted}
+          autoCapitalize="none"
+        />
+        <TouchableOpacity
+          style={[styles.saveBtn, { paddingVertical: 10, backgroundColor: COLORS.accentGold }]}
+          onPress={handleVerifyKku}
+        >
+          <Text style={[styles.saveBtnText, { color: '#000' }]}>ยืนยันตัวตน KKU Account</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Social Media Link Card */}
+      <View style={styles.formCard}>
+        <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14, marginBottom: 4 }}>🔗 เชื่อมต่อ Social Media (Enrich Profile)</Text>
+        <Text style={{ color: COLORS.textMuted, fontSize: 12, marginBottom: 10 }}>
+          ดึงความสนใจจาก Facebook / Instagram เพิ่มโอกาสจับคู่
+        </Text>
+        
+        <View style={{ marginBottom: 10 }}>
+          <Text style={{ color: '#60A5FA', fontSize: 12, marginBottom: 4 }}>Facebook Profile / Handle</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={fbHandle}
+              onChangeText={setFbHandle}
+              placeholder="fb.com/username"
+              placeholderTextColor={COLORS.textMuted}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: 'rgba(24,119,242,0.3)', borderWidth: 1, borderColor: '#1877F2', paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10 }}
+              onPress={() => handleLinkSocial('facebook')}
+            >
+              <Text style={{ color: '#60A5FA', fontWeight: '600', fontSize: 13 }}>เชื่อมต่อ</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View>
+          <Text style={{ color: '#F472B6', fontSize: 12, marginBottom: 4 }}>Instagram Handle</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={igHandle}
+              onChangeText={setIgHandle}
+              placeholder="@username"
+              placeholderTextColor={COLORS.textMuted}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: 'rgba(225,48,108,0.3)', borderWidth: 1, borderColor: '#E1306C', paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10 }}
+              onPress={() => handleLinkSocial('instagram')}
+            >
+              <Text style={{ color: '#F472B6', fontWeight: '600', fontSize: 13 }}>เชื่อมต่อ</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       {/* Actions */}

@@ -1,0 +1,258 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('.*@kkumail[.]com$');
+    }
+    function deletingOwnAccount(uid) {
+      return signedIn() && request.auth.uid == uid
+        && exists(/databases/$(database)/documents/users/$(uid))
+        && get(/databases/$(database)/documents/users/$(uid)).data.deletionInProgress == true;
+    }
+    function isMember(matchId) {
+      let matchData = get(/databases/$(database)/documents/matches/$(matchId)).data;
+      return signedIn() && request.auth.uid in matchData.users
+        && (!('status' in matchData) || matchData.status != 'unmatched');
+    }
+    function isCallMember(callId) {
+      let call = get(/databases/$(database)/documents/calls/$(callId)).data;
+      return signedIn() && (request.auth.uid in call.users
+        || request.auth.uid == call.callerId
+        || request.auth.uid == call.recipientId);
+    }
+    function isCallCaller(callId) {
+      return signedIn() && request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.callerId;
+    }
+    function isCallRecipient(callId) {
+      return signedIn() && request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.recipientId;
+    }
+    function pairBlockId(first, second) {
+      return first < second ? first + '_' + second : second + '_' + first;
+    }
+    function isBlocked(matchId) {
+      let users = get(/databases/$(database)/documents/matches/$(matchId)).data.users;
+      return exists(/databases/$(database)/documents/blocks/$(pairBlockId(users[0], users[1])));
+    }
+    function mutualContactConsent(otherUid) {
+      let pairId = pairBlockId(request.auth.uid, otherUid);
+      let matchPath = /databases/$(database)/documents/matches/$(pairId);
+      let consentPath = /databases/$(database)/documents/contactConsents/$(pairId);
+      return signedIn() && exists(matchPath) && exists(consentPath)
+        && request.auth.uid in get(matchPath).data.users
+        && otherUid in get(matchPath).data.users
+        && get(consentPath).data.consents[request.auth.uid] == true
+        && get(consentPath).data.consents[otherUid] == true;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (resource.data.isDiscoverable == true || request.auth.uid == uid);
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'age', 'faculty', 'bio', 'photoUrl', 'photoPublicId', 'interests', 'preferredAgeMin', 'preferredAgeMax', 'preferredFaculties', 'preferredInterests', 'isDiscoverable', 'deletionInProgress', 'createdAt', 'updatedAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+        && request.resource.data.age is int && request.resource.data.age >= 18 && request.resource.data.age <= 99
+        && request.resource.data.faculty is string && request.resource.data.faculty.size() <= 120
+        && request.resource.data.bio is string && request.resource.data.bio.size() <= 500
+        && request.resource.data.photoUrl is string
+        && request.resource.data.photoUrl.size() <= 2048
+        && (request.resource.data.photoUrl == '' || request.resource.data.photoUrl.matches('https://res[.]cloudinary[.]com/bd1v9fzm/image/upload/.*'))
+        && (!('photoPublicId' in request.resource.data)
+          || (request.resource.data.photoPublicId is string
+            && request.resource.data.photoPublicId.matches('kku_profiles/' + uid + '/[0-9]+')))
+        && (!('deletionInProgress' in request.resource.data) || request.resource.data.deletionInProgress is bool)
+        && (!('interests' in request.resource.data) || (request.resource.data.interests is list && request.resource.data.interests.size() <= 12))
+        && (!('preferredAgeMin' in request.resource.data) || (request.resource.data.preferredAgeMin is int && request.resource.data.preferredAgeMin >= 18 && request.resource.data.preferredAgeMin <= 99))
+        && (!('preferredAgeMax' in request.resource.data) || (request.resource.data.preferredAgeMax is int && request.resource.data.preferredAgeMax >= 18 && request.resource.data.preferredAgeMax <= 99 && (!('preferredAgeMin' in request.resource.data) || request.resource.data.preferredAgeMax >= request.resource.data.preferredAgeMin)))
+        && (!('preferredFaculties' in request.resource.data) || (request.resource.data.preferredFaculties is list && request.resource.data.preferredFaculties.size() <= 10))
+        && (!('preferredInterests' in request.resource.data) || (request.resource.data.preferredInterests is list && request.resource.data.preferredInterests.size() <= 12))
+        && request.resource.data.isDiscoverable is bool;
+      allow delete: if deletingOwnAccount(uid);
+    }
+
+    match /privateProfiles/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || mutualContactConsent(uid));
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['email', 'instagramUrl', 'facebookUrl', 'updatedAt'])
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
+        && (!('instagramUrl' in request.resource.data) || (request.resource.data.instagramUrl is string && request.resource.data.instagramUrl.size() <= 300 && (request.resource.data.instagramUrl == '' || request.resource.data.instagramUrl.matches('https://([A-Za-z0-9-]+[.])*instagram[.]com/.*'))))
+        && (!('facebookUrl' in request.resource.data) || (request.resource.data.facebookUrl is string && request.resource.data.facebookUrl.size() <= 300 && (request.resource.data.facebookUrl == '' || request.resource.data.facebookUrl.matches('https://([A-Za-z0-9-]+[.])*facebook[.]com/.*'))));
+      allow delete: if deletingOwnAccount(uid);
+    }
+
+    match /blocks/{blockId} {
+      allow read: if signedIn() && (resource.data.blockerId == request.auth.uid || resource.data.blockedId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['blockerId', 'blockedId', 'createdAt'])
+        && request.resource.data.blockerId == request.auth.uid
+        && request.resource.data.blockedId is string && request.resource.data.blockedId != request.auth.uid
+        && blockId == pairBlockId(request.resource.data.blockerId, request.resource.data.blockedId)
+        && exists(/databases/$(database)/documents/matches/$(blockId))
+        && request.auth.uid in get(/databases/$(database)/documents/matches/$(blockId)).data.users
+        && request.resource.data.blockedId in get(/databases/$(database)/documents/matches/$(blockId)).data.users;
+      allow update: if false;
+      allow delete: if signedIn() && (resource.data.blockerId == request.auth.uid
+        || (deletingOwnAccount(request.auth.uid) && resource.data.blockedId == request.auth.uid));
+    }
+
+    match /reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['reporterId', 'reportedUserId', 'matchId', 'reason', 'note', 'createdAt', 'status'])
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.reportedUserId is string
+        && request.resource.data.reportedUserId != request.auth.uid
+        && request.resource.data.matchId is string
+        && request.resource.data.reason in ['spam', 'harassment', 'fake_profile', 'inappropriate', 'other']
+        && request.resource.data.note is string && request.resource.data.note.size() <= 500
+        && request.resource.data.status == 'new'
+        && request.resource.data.reportedUserId in get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.users
+        && request.auth.uid in get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.users;
+      allow read: if signedIn() && resource.data.reporterId == request.auth.uid;
+      allow update: if false;
+      allow delete: if deletingOwnAccount(request.auth.uid) && resource.data.reporterId == request.auth.uid;
+    }
+
+    match /contactConsents/{matchId} {
+      allow read: if isMember(matchId);
+      allow create: if isMember(matchId)
+        && request.resource.data.keys().hasOnly(['users', 'consents', 'updatedAt'])
+        && request.resource.data.users == get(/databases/$(database)/documents/matches/$(matchId)).data.users
+        && request.auth.uid in request.resource.data.consents.keys()
+        && request.resource.data.consents.keys().hasOnly([request.auth.uid])
+        && request.resource.data.consents[request.auth.uid] is bool;
+      allow update: if isMember(matchId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['consents', 'updatedAt'])
+        && request.resource.data.users == resource.data.users
+        && request.resource.data.consents.keys().hasOnly(resource.data.users)
+        && request.resource.data.consents.diff(resource.data.consents).affectedKeys().hasOnly([request.auth.uid])
+        && request.resource.data.consents[request.auth.uid] is bool;
+      allow delete: if isMember(matchId);
+    }
+
+    match /swipes/{swipeId} {
+      // Swipe transactions read the reverse swipe before creating the current one.
+      // Permit an authenticated read of a missing document (it contains no data),
+      // while keeping existing swipe records private to their two participants.
+      allow read: if signedIn() && (!exists(/databases/$(database)/documents/swipes/$(swipeId))
+        || resource.data.swiperId == request.auth.uid || resource.data.swipedId == request.auth.uid);
+      allow create, update: if signedIn() && request.resource.data.swiperId == request.auth.uid
+        && request.resource.data.swipedId is string && request.resource.data.swipedId != request.auth.uid
+        && swipeId == request.auth.uid + '_' + request.resource.data.swipedId
+        && !exists(/databases/$(database)/documents/blocks/$(pairBlockId(request.auth.uid, request.resource.data.swipedId)))
+        && request.resource.data.action in ['like', 'pass', 'superlike'];
+      allow delete: if (deletingOwnAccount(request.auth.uid)
+          && (resource.data.swiperId == request.auth.uid || resource.data.swipedId == request.auth.uid))
+        || (signedIn()
+          && (resource.data.swiperId == request.auth.uid || resource.data.swipedId == request.auth.uid)
+          && exists(/databases/$(database)/documents/matches/$(pairBlockId(resource.data.swiperId, resource.data.swipedId)))
+          && getAfter(/databases/$(database)/documents/matches/$(pairBlockId(resource.data.swiperId, resource.data.swipedId))).data.status == 'unmatched'
+          && request.auth.uid in getAfter(/databases/$(database)/documents/matches/$(pairBlockId(resource.data.swiperId, resource.data.swipedId))).data.users);
+    }
+
+    match /matches/{matchId} {
+      // A swipe transaction checks whether the pair's match document already
+      // exists. A missing match has no private data to disclose.
+      allow read: if signedIn() && (!exists(/databases/$(database)/documents/matches/$(matchId))
+        || request.auth.uid in resource.data.users
+        || request.auth.uid == resource.data.callerId
+        || request.auth.uid == resource.data.recipientId);
+      allow create: if signedIn()
+        && request.resource.data.users is list && request.resource.data.users.size() == 2
+        && request.resource.data.matchedBy == request.auth.uid
+        && request.auth.uid in request.resource.data.users
+        && request.resource.data.users[0] < request.resource.data.users[1]
+        && matchId == request.resource.data.users[0] + '_' + request.resource.data.users[1]
+        && get(/databases/$(database)/documents/swipes/$(request.resource.data.users[0] + '_' + request.resource.data.users[1])).data.action in ['like', 'superlike']
+        && get(/databases/$(database)/documents/swipes/$(request.resource.data.users[1] + '_' + request.resource.data.users[0])).data.action in ['like', 'superlike'];
+      allow update: if signedIn() && request.auth.uid in resource.data.users
+        && !isBlocked(matchId)
+        && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastMessageAt'])
+            && request.resource.data.lastMessage is string && request.resource.data.lastMessage.size() <= 4000)
+          || ((!('status' in resource.data) || resource.data.status != 'unmatched')
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'unmatchedBy', 'unmatchedAt'])
+            && request.resource.data.status == 'unmatched'
+            && request.resource.data.unmatchedBy == request.auth.uid
+            && request.resource.data.unmatchedAt == request.time)
+          || (resource.data.status == 'unmatched'
+            && request.resource.data.status == 'active'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'matchedBy', 'unmatchedBy', 'unmatchedAt', 'lastMessage', 'lastMessageAt'])
+            && request.resource.data.matchedBy == request.auth.uid
+            && !('unmatchedBy' in request.resource.data)
+            && !('unmatchedAt' in request.resource.data)
+            && request.resource.data.lastMessage == ''
+            && request.resource.data.lastMessageAt == request.time
+            && get(/databases/$(database)/documents/swipes/$(request.resource.data.users[0] + '_' + request.resource.data.users[1])).data.action in ['like', 'superlike']
+            && get(/databases/$(database)/documents/swipes/$(request.resource.data.users[1] + '_' + request.resource.data.users[0])).data.action in ['like', 'superlike'])
+        );
+      allow delete: if signedIn() && request.auth.uid in resource.data.users;
+
+      match /messages/{messageId} {
+        allow read: if isMember(matchId);
+        allow create: if isMember(matchId) && request.resource.data.keys().hasOnly(['senderId', 'text', 'createdAt'])
+          && !isBlocked(matchId)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000;
+        allow update: if false;
+        allow delete: if isMember(matchId);
+      }
+    }
+
+    match /calls/{callId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['matchId', 'users', 'callerId', 'recipientId', 'callerName', 'state', 'createdAt'])
+        && request.resource.data.matchId is string
+        && request.resource.data.users is list && request.resource.data.users.size() == 2
+        && request.auth.uid == request.resource.data.callerId
+        && request.resource.data.users.hasAll([request.resource.data.callerId, request.resource.data.recipientId])
+        && request.resource.data.callerId != request.resource.data.recipientId
+        && request.resource.data.callerName is string && request.resource.data.callerName.size() <= 80
+        && request.resource.data.state == 'ringing'
+        && get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.users.hasAll(request.resource.data.users)
+        && (!('status' in get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data)
+          || get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.status != 'unmatched')
+        && !isBlocked(request.resource.data.matchId);
+      // The incoming-call listener filters by recipientId and state; rules must
+      // authorize the query using those fields as well as the users array.
+      allow read: if signedIn() && (request.auth.uid in resource.data.users
+        || request.auth.uid == resource.data.callerId
+        || request.auth.uid == resource.data.recipientId);
+      allow update: if signedIn() && request.auth.uid in resource.data.users
+        && (
+          (request.auth.uid == resource.data.callerId
+            && resource.data.state == 'ringing'
+            && request.resource.data.state == 'ringing'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offer', 'updatedAt'])
+            && request.resource.data.offer is map)
+          || (request.auth.uid == resource.data.recipientId
+            && resource.data.state == 'ringing'
+            && request.resource.data.state in ['accepted', 'declined']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer', 'state', 'updatedAt'])
+            && (request.resource.data.state == 'declined' || request.resource.data.answer is map))
+          || (request.resource.data.state == 'ended'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'updatedAt']))
+        );
+      allow delete: if signedIn() && request.auth.uid in resource.data.users;
+
+      match /callerCandidates/{candidateId} {
+        allow read: if isCallMember(callId);
+        allow create: if isCallCaller(callId)
+          && request.resource.data.keys().hasOnly(['candidate', 'sdpMid', 'sdpMLineIndex'])
+          && request.resource.data.candidate is string;
+        allow update: if false;
+        allow delete: if isCallMember(callId);
+      }
+      match /calleeCandidates/{candidateId} {
+        allow read: if isCallMember(callId);
+        allow create: if isCallRecipient(callId)
+          && request.resource.data.keys().hasOnly(['candidate', 'sdpMid', 'sdpMLineIndex'])
+          && request.resource.data.candidate is string;
+        allow update: if false;
+        allow delete: if isCallMember(callId);
+      }
+    }
+  }
+}

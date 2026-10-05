@@ -169,11 +169,30 @@ export function AppProvider({ children }) {
       const partnerId = isMeSender ? recipientId : senderId;
 
       setMatches(prev => {
-        let match = prev.find(m => m.profileId === partnerId);
-        if (!match) return prev;
+        let match = prev.find(m => m.profileId === partnerId || m.id === partnerId || m.id === `m_${partnerId}`);
+        if (!match) {
+          const partnerProfile = profiles.find(p => p.id === partnerId || p.profileId === partnerId) || {
+            id: partnerId,
+            name: 'นิสิต มข.',
+            faculty: '🎓 มหาวิทยาลัยขอนแก่น',
+            img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80'
+          };
+          match = {
+            id: `m_${partnerId}`,
+            profileId: partnerId,
+            name: partnerProfile.name,
+            faculty: partnerProfile.faculty,
+            img: partnerProfile.img || (partnerProfile.media && partnerProfile.media[0] ? partnerProfile.media[0].url : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80'),
+            lastMsg: isMeSender ? `คุณ: ${msgObj.text}` : msgObj.text,
+            time: msgObj.time || 'เมื่อสักครู่',
+          };
+          const updated = [match, ...prev];
+          saveState(undefined, updated, undefined);
+          return updated;
+        }
 
         const updated = prev.map(m => {
-          if (m.profileId === partnerId) {
+          if (m.profileId === partnerId || m.id === partnerId || m.id === `m_${partnerId}`) {
             return {
               ...m,
               lastMsg: isMeSender ? `คุณ: ${msgObj.text}` : msgObj.text,

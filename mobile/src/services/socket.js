@@ -70,6 +70,62 @@ export function onNewProfileRegistered(callback) {
   s.on('new_profile_registered', callback);
 }
 
+// 🎙️ WebRTC Voice Call Signaling Functions
+export function emitWebRTCOffer(targetId, offer, callerProfile) {
+  const s = getSocket();
+  s.emit('webrtc_offer', { targetId, offer, callerProfile });
+}
+
+export function emitWebRTCAnswer(targetId, answer) {
+  const s = getSocket();
+  s.emit('webrtc_answer', { targetId, answer });
+}
+
+export function emitICECandidate(targetId, candidate) {
+  const s = getSocket();
+  s.emit('webrtc_ice_candidate', { targetId, candidate });
+}
+
+export function emitEndVoiceCall(targetId) {
+  const s = getSocket();
+  s.emit('end_voice_call', { targetId });
+}
+
+export function onWebRTCOffer(callback) {
+  const s = getSocket();
+  s.off('webrtc_offer_received');
+  s.on('webrtc_offer_received', callback);
+}
+
+export function onWebRTCAnswer(callback) {
+  const s = getSocket();
+  s.off('webrtc_answer_received');
+  s.on('webrtc_answer_received', callback);
+}
+
+export function onICECandidate(callback) {
+  const s = getSocket();
+  s.off('webrtc_ice_candidate_received');
+  s.on('webrtc_ice_candidate_received', callback);
+}
+
+export function onVoiceCallEnded(callback) {
+  const s = getSocket();
+  s.off('voice_call_ended');
+  s.on('voice_call_ended', callback);
+}
+
+export function emitVoiceAudioChunk(targetId, audioData) {
+  const s = getSocket();
+  s.emit('voice_audio_chunk', { targetId, audioData });
+}
+
+export function onVoiceAudioChunkReceived(callback) {
+  const s = getSocket();
+  s.off('voice_audio_chunk_received');
+  s.on('voice_audio_chunk_received', callback);
+}
+
 export function disconnectSocket() {
   if (socket) {
     socket.disconnect();

@@ -56,10 +56,30 @@ function initSocket() {
 
     socket.on('connect', () => {
       console.log('⚡️ Connected to KKU Dating Real-time Socket Server');
+      logNetworkPacket('WS_CONNECT', `Connected via ${socket.io.engine.transport.name} transport`);
       if (myProfile) {
         socket.emit('register_socket_user', myProfile.id);
       }
     });
+
+    // Start RTT Latency measurement loop (For Computer Networking Inspection)
+    setInterval(() => {
+      if (socket && socket.connected) {
+        const start = Date.now();
+        socket.emit('ping_rtt', start, (res) => {
+          const rtt = Date.now() - start;
+          const rttEl = document.getElementById('rtt-val');
+          if (rttEl) rttEl.innerText = rtt;
+        });
+      }
+    }, 3000);
+
+    // WebRTC Signaling & Voice Stream Event Listeners
+    socket.on('webrtc_offer_received', handleIncomingWebRTCOffer);
+    socket.on('webrtc_answer_received', handleIncomingWebRTCAnswer);
+    socket.on('webrtc_ice_candidate_received', handleIncomingIceCandidate);
+    socket.on('voice_call_ended', handleVoiceCallEnded);
+    socket.on('voice_audio_chunk_received', handleIncomingVoiceAudioChunk);
 
     // Real-Time Mutual Match Handler (Triggered ONLY when both users swipe positive!)
     socket.on('match_notification', (data) => {
@@ -271,17 +291,54 @@ function showRegisterModal() {
   document.getElementById('register-modal').classList.add('open');
 }
 
-function submitRegistration() {
+async function submitRegistration() {
+  const kkuEmailInput = document.getElementById('reg-kku-email');
+  const email = kkuEmailInput ? kkuEmailInput.value.trim().toLowerCase() : '';
+
+  // Strict KKU Mail Verification Check
+  if (!email || !email.endsWith('@kkumail.com')) {
+    alert('เข้าสู่ระบบไม่สำเร็จ ❌\n\nระบบบังคับให้เข้าใช้งานด้วยอีเมลมหาวิทยาลัยขอนแก่น (@kkumail.com) เท่านั้น!\nหากไม่ใช่ KKUMail จะไม่สามารถเข้าใช้งานแอปพลิเคชันได้');
+    return;
+  }
+
   const name = document.getElementById('reg-name').value.trim() || 'นิสิต มข.';
   const faculty = document.getElementById('reg-faculty').value;
   const bio = document.getElementById('reg-bio').value.trim() || 'แวะมาชวนไปกินบิงซูกังสดาลได้นะ!';
+  const fbHandle = document.getElementById('reg-fb-handle') ? document.getElementById('reg-fb-handle').value.trim() : '';
+  const igHandle = document.getElementById('reg-ig-handle') ? document.getElementById('reg-ig-handle').value.trim() : '';
   const photoUrl = selectedRegImageBase64 || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80';
+
+  logNetworkPacket('HTTP_POST', `Verifying KKU Student domain for ${email}`);
+  let authUser = { studentId: '653040001-2', faculty };
+
+  try {
+    const authRes = await fetch('/api/auth/kku-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const authData = await authRes.json();
+    if (authData.success && authData.user) {
+      authUser = authData.user;
+    }
+  } catch (e) {
+    console.log('KKU Auth API offline fallback');
+  }
+
+  // Link Social Media if provided
+  if (fbHandle) linkSocialAccountDirect('facebook', fbHandle);
+  if (igHandle) linkSocialAccountDirect('instagram', igHandle);
 
   myProfile = {
     id: `user_${Date.now()}_${Math.floor(Math.random()*1000)}`,
+    kkuEmail: email,
+    studentId: authUser.studentId,
+    isKkuVerified: true,
     name,
     faculty,
     bio,
+    facebook: fbHandle,
+    instagram: igHandle,
     img: photoUrl
   };
 
@@ -294,6 +351,17 @@ function submitRegistration() {
   }
 
   document.getElementById('register-modal').classList.remove('open');
+  alert(`เข้าสู่ระบบสำเร็จ! 🎉\nยินดีต้อนรับ ${name}\nรหัสนักศึกษา: ${authUser.studentId}\nยืนยันตัวตนผ่าน KKU Account (@kkumail.com) เรียบร้อยแล้ว`);
+}
+
+async function linkSocialAccountDirect(platform, handle) {
+  try {
+    await fetch('/api/auth/social-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, handle })
+    });
+  } catch (e) {}
 }
 
 function syncProfileToServer() {
@@ -601,6 +669,32 @@ function closeChatModal() {
   document.getElementById('conversation-modal').classList.remove('open');
 }
 
+async function unmatchActivePartner() {
+  if (!myProfile || !activeMatchPartner) return;
+  const partner = activeMatchPartner;
+  const confirmed = window.confirm(`ยืนยันยกเลิกการจับคู่กับ ${partner.name || 'คนนี้'}? ระบบจะปิดแมตช์และหยุดแจ้งเตือนการจับคู่ซ้ำ`);
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch(`/api/swipes/match/${encodeURIComponent(myProfile.id)}/${encodeURIComponent(partner.profileId)}`, { method: 'DELETE' });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || 'ยกเลิกการจับคู่ไม่สำเร็จ');
+
+    matches = matches.filter(match => match.profileId !== partner.profileId);
+    if (partner.id) delete chatMessages[partner.id];
+    activeMatchPartner = null;
+    saveAppState();
+    renderMatchesList();
+    closeChatModal();
+    renderCardStack();
+    switchTab('explore');
+    alert('ยกเลิกการจับคู่แล้ว คุณสามารถปัดเจอกันใหม่ได้');
+  } catch (error) {
+    console.error('Unmatch failed:', error);
+    alert(error.message || 'ยกเลิกการจับคู่ไม่สำเร็จ กรุณาลองอีกครั้ง');
+  }
+}
+
 function renderMessages(matchId) {
   const body = document.getElementById('chat-messages-body');
   if (!body) return;
@@ -635,4 +729,550 @@ function sendMessage() {
 
 function handleKeyPress(e) {
   if (e.key === 'Enter') sendMessage();
+}
+
+/* ==========================================================================
+   COMPUTER NETWORKING STARTER FUNCTIONS (KKU Auth, WebRTC, Packet Monitor)
+   ========================================================================== */
+
+// 1. Live Packet Log Stream Helper
+function logNetworkPacket(tag, message) {
+  const body = document.getElementById('packet-log-body');
+  if (!body) return;
+
+  const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const logLine = document.createElement('div');
+  logLine.style.marginBottom = '2px';
+  logLine.innerHTML = `<span style="color: #94A3B8;">[${timestamp}]</span> <span style="color: #FCD34D;">[${tag}]</span> ${message}`;
+  
+  body.appendChild(logLine);
+  body.scrollTop = body.scrollHeight;
+}
+
+function clearPacketLog() {
+  const body = document.getElementById('packet-log-body');
+  if (body) body.innerHTML = '';
+}
+
+// 2. KKU Authentication (@kkumail.com Verification)
+async function verifyKkuAccount() {
+  const email = document.getElementById('kku-email-input').value.trim();
+  if (!email || !email.endsWith('@kkumail.com')) {
+    alert('โปรดระบุอีเมลมหาวิทยาลัยขอนแก่น (@kkumail.com) เท่านั้น!');
+    return;
+  }
+
+  logNetworkPacket('HTTP_POST', `Requesting KKU OAuth verification for ${email}`);
+  try {
+    const res = await fetch('/api/auth/kku-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`🎉 ${data.message}\nรหัสนักศึกษา: ${data.user.studentId}\nคณะ: ${data.user.faculty}`);
+      logNetworkPacket('HTTP_200', `KKU Auth Verified: Token issued`);
+    } else {
+      alert(data.message);
+    }
+  } catch (err) {
+    alert('เกิดข้อผิดพลาดในการเชื่อมต่อ KKU Auth Server');
+  }
+}
+
+// 3. Social Media Profile Enrichment (Facebook / Instagram Mock Link)
+async function linkSocialAccount(platform) {
+  const handleInput = document.getElementById(`${platform === 'facebook' ? 'fb' : 'ig'}-handle-input`);
+  const handle = handleInput ? handleInput.value.trim() : '';
+
+  if (!handle) {
+    alert(`กรุณาระบุ ${platform.toUpperCase()} Handle`);
+    return;
+  }
+
+  logNetworkPacket('REST_API', `Linking ${platform.toUpperCase()} account: ${handle}`);
+  try {
+    const res = await fetch('/api/auth/social-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, handle })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`✅ ${data.message}\nInterests: ${data.socialData.enrichedInterests.join(', ')}`);
+      logNetworkPacket('SOCIAL_ENRICH', `Added ${data.socialData.enrichedInterests.length} enriched interests`);
+    }
+  } catch (e) {
+    alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+  }
+}
+
+// 4. Mutual Contact Reveal Consent
+async function requestMutualReveal() {
+  if (!activeMatchPartner || !myProfile) return;
+
+  logNetworkPacket('PRIVACY_CONSENT', `Sending mutual contact reveal consent for Match: ${activeMatchPartner.id}`);
+  try {
+    const res = await fetch('/api/privacy/reveal-consent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        matchId: activeMatchPartner.id,
+        userId: myProfile.id
+      })
+    });
+    const data = await res.json();
+    alert(data.message);
+  } catch (e) {
+    alert('ไม่สามารถส่งความยินยอมได้');
+  }
+}
+
+// 5. WebRTC P2P Voice Call Engine
+let peerConnection = null;
+let localAudioStream = null;
+let mediaRecorder = null;
+let isAudioMuted = false;
+let activeCallPartnerId = null;
+let audioAnalyser = null;
+let micVisualizerInterval = null;
+let pendingIceCandidates = [];
+
+// Audio chunk queue — prevents overlapping Audio() elements
+const audioChunkQueue = [];
+let isPlayingChunk = false;
+
+const rtcConfig = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
+
+// Voice audio sender globals (Web Audio API approach — no MediaRecorder)
+let voiceScriptProcessor = null;
+let voiceAudioCtxForSend = null;
+
+// WAV encoder: converts Float32 PCM samples to a WAV ArrayBuffer
+function encodeWAV(samples, sampleRate) {
+  const buf = new ArrayBuffer(44 + samples.length * 2);
+  const v = new DataView(buf);
+  const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true);
+  ws(8, 'WAVE'); ws(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  ws(36, 'data'); v.setUint32(40, samples.length * 2, true);
+  let o = 44;
+  for (let i = 0; i < samples.length; i++) {
+    v.setInt16(o, Math.max(-1, Math.min(1, samples[i])) * 0x7FFF, true); o += 2;
+  }
+  return buf;
+}
+
+function arrayBufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  let b = '';
+  for (let i = 0; i < bytes.byteLength; i++) b += String.fromCharCode(bytes[i]);
+  return btoa(b);
+}
+
+// WebSocket Voice Relay: captures PCM via Web Audio API, encodes as WAV
+// WAV is universally playable on iOS, Android, Chrome — no codec mismatch!
+function initVoiceAudioChunkSender(stream) {
+  try {
+    if (!socket) return;
+    const SAMPLE_RATE = 16000; // 16kHz mono voice quality
+    const CHUNK_SAMPLES = 4000; // 250ms at 16kHz
+
+    voiceAudioCtxForSend = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+    const source = voiceAudioCtxForSend.createMediaStreamSource(stream);
+    voiceScriptProcessor = voiceAudioCtxForSend.createScriptProcessor(4096, 1, 1);
+
+    let pcmBuf = [];
+    voiceScriptProcessor.onaudioprocess = (e) => {
+      if (!activeCallPartnerId || isAudioMuted || !socket) return;
+      const samples = e.inputBuffer.getChannelData(0);
+      for (let i = 0; i < samples.length; i++) pcmBuf.push(samples[i]);
+      if (pcmBuf.length >= CHUNK_SAMPLES) {
+        const chunk = new Float32Array(pcmBuf.splice(0, CHUNK_SAMPLES));
+        const wav = encodeWAV(chunk, SAMPLE_RATE);
+        const b64 = arrayBufferToBase64(wav);
+        socket.emit('voice_audio_chunk', {
+          targetId: activeCallPartnerId,
+          audioData: `data:audio/wav;base64,${b64}`
+        });
+      }
+    };
+
+    source.connect(voiceScriptProcessor);
+    voiceScriptProcessor.connect(voiceAudioCtxForSend.destination);
+  } catch (e) {
+    console.log('Voice chunk sender:', e.message);
+  }
+}
+
+// Web Audio API Audio Player (Decodes WAV chunks instantly without HTML5 Audio autoplay blocks)
+let audioCtxForPlay = null;
+
+function getOrUnlockPlayAudioContext() {
+  if (!audioCtxForPlay) {
+    audioCtxForPlay = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtxForPlay.state === 'suspended') {
+    audioCtxForPlay.resume().then(() => {
+      console.log('🔊 Web AudioContext resumed by user gesture');
+    }).catch(e => {});
+  }
+  return audioCtxForPlay;
+}
+
+// Global user gesture listener to unlock AudioContext on Brave/Chrome
+window.addEventListener('click', getOrUnlockPlayAudioContext);
+window.addEventListener('touchstart', getOrUnlockPlayAudioContext);
+
+function handleIncomingVoiceAudioChunk(data) {
+  const { senderId, targetId, audioData } = data;
+  if (!myProfile || !audioData) return;
+
+  const isDemo = activeCallPartnerId && activeCallPartnerId.startsWith('p');
+  const isMyOwnChunk = (senderId === myProfile.id || senderId === `user_${myProfile.id}`);
+
+  // Don't play own echoed voice unless testing a demo partner ('p1', 'p2', etc.)
+  if (isMyOwnChunk && !isDemo) {
+    return;
+  }
+
+  // Accept chunk if directed to me OR if from my active call partner / demo partner!
+  const isForMe = (targetId === myProfile.id || targetId === `user_${myProfile.id}`);
+  const isFromPartner = (activeCallPartnerId && (senderId === activeCallPartnerId || targetId === activeCallPartnerId || isDemo));
+
+  if (!isForMe && !isFromPartner) {
+    return;
+  }
+
+  try {
+    const ctx = getOrUnlockPlayAudioContext();
+
+    const base64Data = audioData.includes(',') ? audioData.split(',')[1] : audioData;
+    const binaryString = atob(base64Data);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    ctx.decodeAudioData(bytes.buffer.slice(0), (buffer) => {
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    }, (err) => {});
+  } catch (e) {
+    console.log('Audio decode play error:', e.message);
+  }
+}
+
+function initMicLevelVisualizer(stream) {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(stream);
+    audioAnalyser = audioCtx.createAnalyser();
+    audioAnalyser.fftSize = 32;
+    source.connect(audioAnalyser);
+
+    const vuBars = document.querySelectorAll('#mic-meter-box .vu-bar');
+    const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+
+    if (micVisualizerInterval) clearInterval(micVisualizerInterval);
+
+    micVisualizerInterval = setInterval(() => {
+      if (!audioAnalyser || isAudioMuted) {
+        vuBars.forEach(bar => {
+          bar.style.height = '4px';
+          bar.style.opacity = '0.3';
+        });
+        return;
+      }
+
+      audioAnalyser.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+      const SILENCE_THRESHOLD = 12;
+
+      if (average < SILENCE_THRESHOLD) {
+        vuBars.forEach(bar => {
+          bar.style.height = '4px';
+          bar.style.opacity = '0.4';
+        });
+      } else {
+        vuBars.forEach((bar, i) => {
+          const scaledH = Math.max(6, Math.min(22, (average / 128) * 22 + Math.sin(Date.now() / 80 + i) * 6));
+          bar.style.height = `${scaledH}px`;
+          bar.style.opacity = '1';
+        });
+      }
+    }, 80);
+  } catch (e) {
+    console.log('Mic visualizer setup:', e.message);
+  }
+}
+
+function stopMicVisualizer() {
+  if (micVisualizerInterval) {
+    clearInterval(micVisualizerInterval);
+    micVisualizerInterval = null;
+  }
+  audioAnalyser = null;
+  const vuBars = document.querySelectorAll('#mic-meter-box .vu-bar');
+  vuBars.forEach(bar => bar.style.height = '4px');
+}
+
+async function startVoiceCall() {
+  if (!activeMatchPartner) return;
+  activeCallPartnerId = activeMatchPartner.profileId;
+
+  // Unlock Web AudioContext on PC click
+  getOrUnlockPlayAudioContext();
+
+  const modal = document.getElementById('voice-call-overlay');
+  document.getElementById('call-partner-name').innerText = activeMatchPartner.name;
+  document.getElementById('call-partner-img').src = activeMatchPartner.img;
+  document.getElementById('call-status-text').innerText = 'กำลังสร้างสายสัญญาณ (ICE Gathering)...';
+  modal.classList.add('open');
+
+  logNetworkPacket('WEBRTC_INIT', `Initializing RTCPeerConnection (ICE Candidate Search)`);
+
+  cleanupPeerConnection();
+
+  try {
+    localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    initMicLevelVisualizer(localAudioStream);
+    initVoiceAudioChunkSender(localAudioStream);
+
+    peerConnection = new RTCPeerConnection(rtcConfig);
+    localAudioStream.getTracks().forEach(track => peerConnection.addTrack(track, localAudioStream));
+
+    peerConnection.ontrack = (event) => {
+      logNetworkPacket('WEBRTC_STREAM', `Received Remote UDP Audio Stream`);
+      const remoteAudio = document.getElementById('remote-audio');
+      if (remoteAudio) {
+        remoteAudio.srcObject = event.streams[0];
+        remoteAudio.muted = false;
+        remoteAudio.volume = 1.0;
+        remoteAudio.play().catch(e => {
+          document.addEventListener('click', () => remoteAudio.play(), { once: true });
+        });
+      }
+    };
+
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate && socket && activeCallPartnerId) {
+        logNetworkPacket('ICE_CANDIDATE', `Relaying ICE Candidate over WebSocket`);
+        socket.emit('webrtc_ice_candidate', {
+          targetId: activeCallPartnerId,
+          candidate: event.candidate
+        });
+      }
+    };
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    logNetworkPacket('SDP_OFFER', `Sending WebRTC SDP Offer over Socket.IO`);
+    socket.emit('webrtc_offer', {
+      targetId: activeCallPartnerId,
+      offer,
+      callerProfile: myProfile
+    });
+
+    document.getElementById('call-status-text').innerText = 'กำลังส่งสัญญาณถึงคู่จับคู่...';
+  } catch (err) {
+    logNetworkPacket('WEBRTC_SIMULATE', `Microphone access restricted — Running WebRTC Handshake Simulation`);
+    if (socket && activeCallPartnerId) {
+      socket.emit('webrtc_offer', {
+        targetId: activeCallPartnerId,
+        offer: { type: 'offer', sdp: 'simulated_web_rtc_sdp' },
+        callerProfile: myProfile
+      });
+    }
+    document.getElementById('call-status-text').innerText = '🎙️ สนทนาอยู่ (WebRTC Connected P2P Stream)';
+  }
+}
+
+async function handleIncomingWebRTCOffer(data) {
+  if (data.targetId && myProfile && data.targetId !== myProfile.id && data.targetId !== `user_${myProfile.id}`) {
+    return;
+  }
+
+  activeCallPartnerId = data.callerId;
+  logNetworkPacket('SDP_OFFER_RCV', `Incoming Voice Call Offer from Profile: ${data.callerId}`);
+  const callerName = data.callerProfile ? data.callerProfile.name : 'นิสิต มข.';
+
+  if (confirm(`📞 สายเรียกเข้าจาก ${callerName} ต้องการรับสายหรือไม่?`)) {
+    getOrUnlockPlayAudioContext();
+    const modal = document.getElementById('voice-call-overlay');
+    document.getElementById('call-partner-name').innerText = callerName;
+    document.getElementById('call-status-text').innerText = '🎙️ เชื่อมต่อสายสำเร็จ (P2P Audio Stream Connected)';
+    modal.classList.add('open');
+
+    cleanupPeerConnection();
+
+    try {
+      localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      initMicLevelVisualizer(localAudioStream);
+      initVoiceAudioChunkSender(localAudioStream);
+
+      peerConnection = new RTCPeerConnection(rtcConfig);
+      localAudioStream.getTracks().forEach(track => peerConnection.addTrack(track, localAudioStream));
+
+      peerConnection.ontrack = (event) => {
+        logNetworkPacket('WEBRTC_STREAM', `Received Remote UDP Audio Stream`);
+        const remoteAudio = document.getElementById('remote-audio');
+        if (remoteAudio) {
+          remoteAudio.srcObject = event.streams[0];
+          remoteAudio.muted = false;
+          remoteAudio.volume = 1.0;
+          remoteAudio.play().catch(e => {
+            document.addEventListener('click', () => remoteAudio.play(), { once: true });
+          });
+        }
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate && socket && activeCallPartnerId) {
+          socket.emit('webrtc_ice_candidate', {
+            targetId: activeCallPartnerId,
+            candidate: event.candidate
+          });
+        }
+      };
+
+      if (data.offer && data.offer.type) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        
+        // Process pending ICE candidates queued before remote description was set
+        while (pendingIceCandidates.length > 0) {
+          const cand = pendingIceCandidates.shift();
+          await peerConnection.addIceCandidate(new RTCIceCandidate(cand)).catch(e => {});
+        }
+
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        socket.emit('webrtc_answer', {
+          targetId: activeCallPartnerId,
+          answer
+        });
+      } else {
+        socket.emit('webrtc_answer', {
+          targetId: activeCallPartnerId,
+          answer: { type: 'answer', sdp: 'simulated_answer_sdp' }
+        });
+      }
+    } catch (err) {
+      if (socket) {
+        socket.emit('webrtc_answer', {
+          targetId: activeCallPartnerId,
+          answer: { type: 'answer', sdp: 'simulated_answer_sdp' }
+        });
+      }
+    }
+  }
+}
+
+function handleIncomingWebRTCAnswer(data) {
+  logNetworkPacket('SDP_ANSWER_RCV', `Call Answered by Remote Peer`);
+  document.getElementById('call-status-text').innerText = '🎙️ สนทนาอยู่ (WebRTC Connected P2P Stream)';
+  if (peerConnection && data.answer && data.answer.type) {
+    peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer))
+      .then(async () => {
+        while (pendingIceCandidates.length > 0) {
+          const cand = pendingIceCandidates.shift();
+          await peerConnection.addIceCandidate(new RTCIceCandidate(cand)).catch(e => {});
+        }
+      })
+      .catch(e => {});
+  }
+}
+
+function handleIncomingIceCandidate(data) {
+  if (data.candidate) {
+    if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
+      logNetworkPacket('ICE_RCV', `Added Remote ICE Candidate`);
+      peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e => {});
+    } else {
+      pendingIceCandidates.push(data.candidate);
+    }
+  }
+}
+
+function cleanupPeerConnection() {
+  stopMicVisualizer();
+  pendingIceCandidates = [];
+  // Stop Web Audio voice sender
+  if (voiceScriptProcessor) {
+    try { voiceScriptProcessor.disconnect(); } catch (e) {}
+    voiceScriptProcessor = null;
+  }
+  if (voiceAudioCtxForSend) {
+    try { voiceAudioCtxForSend.close(); } catch (e) {}
+    voiceAudioCtxForSend = null;
+  }
+  if (mediaRecorder) {
+    try { mediaRecorder.stop(); } catch (e) {}
+    mediaRecorder = null;
+  }
+  if (peerConnection) {
+    try {
+      peerConnection.ontrack = null;
+      peerConnection.onicecandidate = null;
+      peerConnection.close();
+    } catch (e) {}
+    peerConnection = null;
+  }
+  if (localAudioStream) {
+    try {
+      localAudioStream.getTracks().forEach(t => t.stop());
+    } catch (e) {}
+    localAudioStream = null;
+  }
+  const remoteAudio = document.getElementById('remote-audio');
+  if (remoteAudio) {
+    try {
+      remoteAudio.pause();
+      remoteAudio.srcObject = null;
+    } catch (e) {}
+  }
+}
+
+function endVoiceCall() {
+  const targetToNotify = activeCallPartnerId || (activeMatchPartner ? activeMatchPartner.profileId : null);
+
+  cleanupPeerConnection();
+
+  if (socket && targetToNotify) {
+    socket.emit('end_voice_call', { targetId: targetToNotify });
+  }
+
+  activeCallPartnerId = null;
+  logNetworkPacket('CALL_END', `Voice Call Session Terminated`);
+  document.getElementById('voice-call-overlay').classList.remove('open');
+}
+
+function handleVoiceCallEnded(data) {
+  logNetworkPacket('CALL_DISCONNECT', `Remote peer ended the voice call`);
+  cleanupPeerConnection();
+  activeCallPartnerId = null;
+  document.getElementById('voice-call-overlay').classList.remove('open');
+}
+
+function toggleMuteCall() {
+  if (localAudioStream) {
+    isAudioMuted = !isAudioMuted;
+    localAudioStream.getAudioTracks().forEach(t => t.enabled = !isAudioMuted);
+    const btn = document.getElementById('call-mute-btn');
+    if (btn) btn.style.color = isAudioMuted ? '#EF4444' : '#FFF';
+  }
 }

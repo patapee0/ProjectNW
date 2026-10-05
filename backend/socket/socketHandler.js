@@ -41,8 +41,12 @@ function setupSocketHandlers(io) {
             const reverseSwipe = await Swipe.findOne({ swiperId: swipedId, swipedId: swiperId, isPositive: true });
             const targetIsDemo = swipedId.startsWith('p');
             if (reverseSwipe || targetIsDemo) {
+              const p1Id = swiperId < swipedId ? swiperId : swipedId;
+              const p2Id = swiperId < swipedId ? swipedId : swiperId;
+              const previousMatch = await Match.findOne({ profile1Id: p1Id, profile2Id: p2Id });
+              if (previousMatch?.status === 'unmatched') return;
               isMutualMatch = true;
-              try { await Match.create({ profile1Id: swiperId, profile2Id: swipedId }); } catch (e) {}
+              try { await Match.create({ profile1Id: p1Id, profile2Id: p2Id }); } catch (e) {}
             }
           }
         } else {
@@ -52,8 +56,14 @@ function setupSocketHandlers(io) {
             const reverseSwipe = memorySwipes.some(s => s.swiperId === swipedId && s.swipedId === swiperId && s.isPositive);
             const targetIsDemo = swipedId.startsWith('p');
             if (reverseSwipe || targetIsDemo) {
+              const p1Id = swiperId < swipedId ? swiperId : swipedId;
+              const p2Id = swiperId < swipedId ? swipedId : swiperId;
+              const previousMatch = memoryMatches.find(m => m.profile1Id === p1Id && m.profile2Id === p2Id);
+              if (previousMatch?.status === 'unmatched') return;
               isMutualMatch = true;
-              memoryMatches.push({ profile1Id: swiperId, profile2Id: swipedId, matchedAt: new Date() });
+              if (!memoryMatches.some(m => m.profile1Id === p1Id && m.profile2Id === p2Id)) {
+                memoryMatches.push({ profile1Id: p1Id, profile2Id: p2Id, matchedAt: new Date() });
+              }
             }
           }
         }
@@ -110,6 +120,87 @@ function setupSocketHandlers(io) {
       } catch (err) {
         console.error('Socket message error:', err.message);
       }
+    });
+
+    // 📡 Network RTT Ping-Pong latency handler (For Computer Networking Course Inspector)
+    socket.on('ping_rtt', (clientTimestamp, callback) => {
+      if (typeof callback === 'function') {
+        callback({ serverTimestamp: Date.now(), clientTimestamp });
+      } else {
+        socket.emit('pong_rtt', { serverTimestamp: Date.now(), clientTimestamp });
+      }
+    });
+
+    // 🎙️ WebRTC Voice Call Signaling Handlers
+    const handleOffer = (data) => {
+      const { targetId, offer, callerProfile } = data;
+      const callerId = socket.profileId || socket.id;
+      console.log(`📞 WebRTC Offer: [${callerId}] -> [${targetId}]`);
+      io.emit('webrtc_offer_received', {
+        callerId,
+        targetId,
+        offer,
+        callerProfile: callerProfile || { name: 'นิสิต มข.', faculty: 'มหาวิทยาลัยขอนแก่น' }
+      });
+    };
+
+    socket.on('webrtc_offer', handleOffer);
+    socket.on('webrtc', handleOffer);
+
+    socket.on('webrtc_answer', (data) => {
+      const { targetId, answer } = data;
+      const responderId = socket.profileId || socket.id;
+      console.log(`📞 WebRTC Answer: [${responderId}] -> [${targetId}]`);
+      io.emit('webrtc_answer_received', {
+        responderId,
+        targetId,
+        answer
+      });
+    });
+
+    socket.on('webrtc_ice_candidate', (data) => {
+      const { targetId, candidate } = data;
+      const senderId = socket.profileId || socket.id;
+      io.emit('webrtc_ice_candidate_received', {
+        senderId,
+        targetId,
+        candidate
+      });
+    });
+
+    // 🎙️ Full-Duplex Real-Time Voice Audio Stream Relay (Targeted emission with detailed packet logging)
+    socket.on('voice_audio_chunk', (data) => {
+      const { targetId, audioData } = data;
+      const senderId = socket.profileId || socket.id;
+
+      if (!targetId || !audioData) return;
+
+      const payload = {
+        senderId,
+        targetId,
+        audioData
+      };
+
+      const byteLength = audioData ? audioData.length : 0;
+      console.log(`[SERVER-RELAY] 🎙️ Voice chunk from [${senderId}] -> [${targetId}] (${byteLength} chars)`);
+
+      // If calling demo partner ('p1', 'p2', etc.), loop back to sender for testing
+      if (targetId.startsWith('p')) {
+        socket.emit('voice_audio_chunk_received', payload);
+      } else {
+        // Emit specifically to the target user's rooms
+        io.to(targetId).to(`user_${targetId}`).emit('voice_audio_chunk_received', payload);
+      }
+    });
+
+    socket.on('end_voice_call', (data) => {
+      const targetId = data ? data.targetId : null;
+      const callerId = socket.profileId || socket.id;
+      console.log(`📵 Voice Call Ended by: [${callerId}] targeting [${targetId}]`);
+      io.emit('voice_call_ended', {
+        callerId,
+        targetId
+      });
     });
 
     socket.on('disconnect', () => {

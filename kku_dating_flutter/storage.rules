@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /profiles/{uid}/{fileName} {
+      allow read: if request.auth != null && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@kkumail[.]com$');
+      allow write: if request.auth != null && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@kkumail[.]com$')
+        && request.auth.uid == uid
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

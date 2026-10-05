@@ -1,143 +1,85 @@
-# 💖 KKU Dating (แอปหาคู่มหาวิทยาลัยขอนแก่น) — v2.0
+# KKU Dating
 
-**KKU Dating** เป็นแอปพลิเคชันหาคู่ออนไลน์สำหรับนักศึกษาและศิษย์เก่ามหาวิทยาลัยขอนแก่น (มข.)
+โปรเจกต์มี Flutter app สำหรับ Android/iOS และ Flutter Web ที่ใช้หน้าและบริการ Firebase ชุดเดียวกัน เป้าหมายคือให้เว็บและแอปใช้บัญชี ข้อมูลโปรไฟล์ การแมตช์ และข้อความชุดเดียวกันผ่าน Firebase บนอินเทอร์เน็ต ไม่ต้องเปิดเครื่องพัฒนาและไม่ต้องใช้เครือข่าย Wi-Fi เดียวกัน
 
-## 🛠 Tech Stack
+## โครงสร้างปัจจุบัน
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend (Mobile)** | React Native (Expo) |
-| **Backend** | Node.js + Express |
-| **Database** | MongoDB (Mongoose ODM) |
-| **Real-time** | Socket.IO |
-| **Source Control** | GitHub + CI/CD (GitHub Actions) |
+| ส่วน | ที่อยู่ | สถานะ |
+| --- | --- | --- |
+| เว็บเดโมเดิม | `index.html`, `app.js`, `styles.css` | legacy; ยังเก็บบางข้อมูลใน `localStorage` และเรียก Express API; ไม่แชร์ข้อมูล Firebase |
+| Backend เดิม | `backend/` | Express, MongoDB และ Socket.IO; มีข้อมูลจำลอง/หน่วยความจำและยังไม่เหมาะเปิดสาธารณะ |
+| แอป Flutter | `kku_dating_flutter/` | เริ่มใช้ Firebase Auth, Firestore และ Storage; มีสมัคร/ยืนยันอีเมล, โปรไฟล์, ค้นพบ, swipe, match และแชท |
+| แอป Expo เดิม | `mobile/` | มี Android native project แต่ยังใช้ API ที่ต้องกำหนด URL; ไม่ใช่แอป Flutter |
 
----
+> **ข้อควรระวัง:** backend ใน `backend/` เป็นเดโมเก่าที่มี mock KKU login และ Socket.IO ที่เชื่อ user ID จาก client จึงถูกปิดการเริ่มทำงานไว้โดยค่าเริ่มต้น และ bind เฉพาะ `127.0.0.1` เมื่อเปิดใช้เพื่อทดลองในเครื่องเท่านั้น ห้ามนำไป deploy หรือใช้กับข้อมูลจริง แอปที่ควรใช้คือ Flutter ใน `kku_dating_flutter/` ซึ่งยืนยันตัวตนและตรวจสิทธิ์ด้วย Firebase
 
-## 🌟 ฟีเจอร์หลัก
+สำหรับเว็บและมือถือที่ใช้ Firebase ร่วมกัน ให้ build Flutter Web ลง Firebase Hosting หรือ build เป็น native Android/iOS จาก `kku_dating_flutter/`; ไม่ต้องเปิด Expo Go ส่วน iOS ต้อง build/sign บนเครื่อง macOS ที่ติดตั้ง Xcode; Windows สร้าง iOS archive ไม่ได้ หน้าเว็บเดิมยังแยกจาก Firebase จนกว่าจะย้ายข้อมูลและเปลี่ยน Hosting ไป Flutter Web
 
-1. **ระบบปัดโปรไฟล์ (Tinder-style Swiping)** — ลาก/ปัดการ์ดด้วย Gesture
-2. **รองรับวิดีโอสั้น 3 วินาที** — Auto-loop video preview
-3. **ระบบแจ้งเตือนแมตช์** — "It's a Match!" popup ทันที
-4. **ระบบแชทเรียลไทม์** — ส่งข้อความโต้ตอบผ่าน Socket.IO
-5. **หน้าแก้ไขโปรไฟล์** — เปลี่ยนชื่อ, คณะ, Bio
-6. **Multi-device** — เล่นพร้อมกันหลายเครื่องผ่าน Wi-Fi เดียวกัน
+แผนระบบและรายการตรวจพบอยู่ใน [SYSTEM_DESIGN_PLAN_TH.md](SYSTEM_DESIGN_PLAN_TH.md)
 
----
+## เตรียม Firebase
 
-## 📁 โครงสร้างโปรเจกต์
+1. โปรเจกต์คือ `ProjectNetwork` (`projectnetwork-c403e`, project number `994412669909`); ได้ลงทะเบียน Android/iOS/Web apps แล้ว โดย Android/iOS ใช้ `com.kkudating.app` และ Hosting site คือ `projectnetwork-c403e-cf176`
+2. เปิด **Authentication → Email/Password**, **Cloud Firestore** และ **Cloud Storage**
+3. Deploy `kku_dating_flutter/firestore.rules`, `firestore.indexes.json` และ `storage.rules` ด้วย Firebase CLI จากโฟลเดอร์ `kku_dating_flutter`
+4. Web config จาก Firebase Console ถูกตั้งเป็นค่าเริ่มต้นใน `kku_dating_flutter/lib/firebase_options.dart` แล้ว; ใส่ Android หรือ iOS App ID ที่ได้จาก Firebase Console ใน `--dart-define` ตอน build (ค่าพวกนี้เป็น client config ไม่ใช่ service-account key)
 
-```
-project network/
-├── backend/                    # Node.js + Express + MongoDB
-│   ├── server.js               # Express + Socket.IO server
-│   ├── config/db.js            # Mongoose connection
-│   ├── models/                 # Mongoose schemas
-│   │   ├── Profile.js
-│   │   ├── Swipe.js
-│   │   ├── Match.js
-│   │   └── Message.js
-│   ├── routes/                 # REST API endpoints
-│   │   ├── profileRoutes.js
-│   │   ├── swipeRoutes.js
-│   │   ├── chatRoutes.js
-│   │   └── mediaRoutes.js
-│   ├── socket/socketHandler.js # Socket.IO events
-│   ├── services/mediaService.js
-│   └── seed.js                 # Demo data seeder
-│
-├── mobile/                     # React Native (Expo)
-│   ├── App.js                  # Entry point
-│   └── src/
-│       ├── screens/            # 5 หน้าจอ
-│       │   ├── ExploreScreen.js
-│       │   ├── MatchesScreen.js
-│       │   ├── ChatScreen.js
-│       │   ├── ProfileScreen.js
-│       │   └── RegisterScreen.js
-│       ├── navigation/
-│       ├── context/AppContext.js
-│       ├── services/           # API + Socket client
-│       └── constants/          # Colors, Faculties
-│
-├── .github/workflows/ci.yml   # GitHub Actions CI
-└── README.md
+ตัวอย่าง PowerShell สำหรับ Android:
+
+```powershell
+cd kku_dating_flutter
+flutter pub get
+flutter run -d android `
+  --dart-define=FIREBASE_PROJECT_ID=projectnetwork-c403e `
+  --dart-define=FIREBASE_MESSAGING_SENDER_ID=994412669909 `
+  --dart-define=FIREBASE_ANDROID_APP_ID=<android-app-id> `
+  --dart-define=FIREBASE_STORAGE_BUCKET=<storage-bucket>
 ```
 
----
+สร้าง Android APK สำหรับติดตั้ง:
 
-## 🚀 วิธีการเปิดใช้งาน
-
-### 1. ติดตั้ง MongoDB
-```bash
-# macOS (Homebrew)
-brew install mongodb-community@7.0
-brew services start mongodb-community
-
-# Windows — ดาวน์โหลดจาก https://www.mongodb.com/try/download/community
-# หรือใช้ MongoDB Atlas (free tier): https://cloud.mongodb.com
+```powershell
+flutter build apk --release `
+  --dart-define=FIREBASE_PROJECT_ID=projectnetwork-c403e `
+  --dart-define=FIREBASE_MESSAGING_SENDER_ID=994412669909 `
+  --dart-define=FIREBASE_ANDROID_APP_ID=<android-app-id> `
+  --dart-define=FIREBASE_STORAGE_BUCKET=<storage-bucket>
 ```
 
-### 2. รัน Backend Server
-```bash
-cd backend
+ตัวอย่าง iOS บน macOS เพิ่ม `FIREBASE_IOS_APP_ID`, `FIREBASE_IOS_BUNDLE_ID=com.kkudating.app` แล้วใช้ `flutter run -d ios` หรือ `flutter build ipa --release` พร้อมค่าชุดเดียวกัน ส่วนเว็บ Flutter เพิ่ม `FIREBASE_WEB_APP_ID` และ `FIREBASE_AUTH_DOMAIN` แล้ว build ด้วย `flutter build web`
+
+Deploy rules และเว็บ Hosting จาก `kku_dating_flutter/` หลัง build เว็บและเข้าสู่ระบบ Firebase CLI ด้วย project `projectnetwork-c403e` ให้ใช้ `firebase.json` ที่มีอยู่แล้ว ไม่ต้องรัน `firebase init`:
+
+```powershell
+flutter build web --release
+firebase deploy --only hosting,firestore:rules,firestore:indexes,storage
+```
+
+สำหรับ Android/iOS ให้เติม App ID ของ platform จาก Firebase Console ใน build ด้วย `--dart-define=FIREBASE_ANDROID_APP_ID=...` หรือ `--dart-define=FIREBASE_IOS_APP_ID=...`; ห้ามใส่ service-account JSON หรือ Admin SDK private key ในแอป/เว็บ
+
+## โครงสร้างข้อมูล Firebase
+
+- `users/{uid}` — โปรไฟล์ที่เปิดแสดงต่อสมาชิกที่ยืนยันอีเมลแล้ว
+- `swipes/{swiperUid}_{targetUid}` — การเลือกของผู้ใช้; ใช้ document ID ที่คงที่เพื่อกันข้อมูลซ้ำ
+- `matches/{lowerUid}_{higherUid}` — แมตช์และข้อความล่าสุด
+- `matches/{matchId}/messages/{messageId}` — บทสนทนาที่สมาชิกในแมตช์อ่าน/ส่งได้
+- Firebase Storage `profiles/{uid}/{file}` — รูปภาพของเจ้าของบัญชี
+
+Firestore เปิด cache บนอุปกรณ์ Android/iOS โดย SDK; การยืนยันสิทธิ์, สร้างบัญชี และส่งข้อความต้องต่ออินเทอร์เน็ต ข้อมูลที่ cache ไว้ช่วยให้อ่านข้อมูลที่เคยโหลดได้ แต่ไม่ได้ทำให้การสมัคร/ค้นพบผู้ใช้ใหม่ทำงานแบบออฟไลน์
+
+## ข้อจำกัดก่อนเปิดให้ผู้ใช้จริง
+
+- ยืนยันว่าอีเมลถูกเปิดจากกล่องจดหมายจริง แต่การตรวจโดเมนอย่างเดียวไม่เท่ากับ KKU SSO; ตรวจสอบกับฝ่าย IT มข. ว่ามี identity provider ให้ใช้หรือไม่
+- เว็บปัจจุบันยังไม่ได้ย้ายจาก localStorage/API ไปใช้ Firebase Auth และ Firestore จึงยังไม่ sync กับ Flutter จนกว่าจะทำ migration ตามแผน
+- ควรย้ายการสร้าง match, การตรวจสิทธิ์/รายงานผู้ใช้, push notification และงาน moderation ไป Cloud Functions พร้อม App Check และ rate limits
+- แชทใน Flutter เป็น real-time ด้วย Firestore; voice call, media picker/upload UI, push notifications และ admin console ยังไม่อยู่ในรุ่นนี้
+- กฎ Firebase เป็นส่วนบังคับของระบบ: deploy rules ก่อนเปิดข้อมูลให้แอปเชื่อมต่อ
+
+## Backend เดิม (ใช้เพื่ออ้างอิง/ระหว่างย้ายระบบ)
+
+```powershell
 npm install
-node seed.js          # เพิ่มข้อมูล demo profiles
-node server.js        # รัน API server ที่ port 3000
+npm run dev
 ```
 
-### 3. รัน Mobile App
-```bash
-cd mobile
-npm install
-npx expo start        # เปิด Expo dev server
-```
-- สแกน QR Code ด้วย **Expo Go** (iOS/Android) เพื่อเปิดแอปบนมือถือจริง
-- หรือกด **w** เพื่อเปิดใน Web Browser
-
-### 4. เชื่อมต่อหลายเครื่อง
-- เชื่อมต่อ Wi-Fi เดียวกัน
-- แก้ไข `mobile/src/services/api.js` → เปลี่ยน `BASE_URL` เป็น IP ของเครื่อง backend
-- เปิด Expo Go บนมือถืออีกเครื่อง → สแกน QR → เล่นพร้อมกันได้!
-
----
-
-## 🗄️ MongoDB Schema
-
-| Collection | Description |
-|-----------|-------------|
-| `profiles` | ข้อมูลโปรไฟล์ (ชื่อ, อายุ, คณะ, Bio, รูป, วิดีโอ) |
-| `swipes` | ประวัติการปัด (like/dislike/superlike) |
-| `matches` | คู่ที่แมตช์กัน (mutual likes) |
-| `messages` | ข้อความแชท |
-
----
-
-## 📡 API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/profiles` | ดึงโปรไฟล์ทั้งหมด |
-| POST | `/api/profiles/register` | สร้าง/อัปเดตโปรไฟล์ |
-| POST | `/api/swipes` | บันทึก swipe + ตรวจ match |
-| GET | `/api/messages/:matchId` | ดึงข้อความแชท |
-| POST | `/api/media/upload` | อัปโหลดรูป/วิดีโอ |
-| GET | `/api/health` | Health check |
-
----
-
-## ⚡ Socket.IO Events
-
-| Event | Direction | Description |
-|-------|-----------|-------------|
-| `swipe_action` | Client → Server | ส่ง swipe action |
-| `match_notification` | Server → Client | แจ้งเตือนแมตช์ |
-| `send_chat_message` | Client → Server | ส่งข้อความ |
-| `chat_message_received` | Server → Client | รับข้อความ |
-| `new_profile_registered` | Server → Client | โปรไฟล์ใหม่ลงทะเบียน |
-
----
-
-## 👨‍💻 พัฒนาโดย
-
-นักศึกษามหาวิทยาลัยขอนแก่น — วิชา Computer Network Project
+Backend นี้ยังใช้ MongoDB/หน่วยความจำและไม่ใช่บริการ cloud ที่พร้อมใช้งานจริงโดยไม่มีการ deploy, TLS, authentication และแก้ authorization/broadcast ตามแผน ห้ามเปิด API นี้สู่อินเทอร์เน็ตสาธารณะในสภาพปัจจุบัน

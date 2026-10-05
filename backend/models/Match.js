@@ -18,6 +18,12 @@ const matchSchema = new mongoose.Schema({
   matchedAt: {
     type: Date,
     default: Date.now
+  },
+  status: {
+    type: String,
+    enum: ['active', 'unmatched'],
+    default: 'active',
+    index: true
   }
 }, {
   timestamps: true
@@ -25,5 +31,15 @@ const matchSchema = new mongoose.Schema({
 
 // ป้องกันแมตช์ซ้ำ — เหมือน UNIQUE(profile_1_id, profile_2_id) ใน PostgreSQL
 matchSchema.index({ profile1Id: 1, profile2Id: 1 }, { unique: true });
+
+// Ensure profile1Id and profile2Id are always sorted alphabetically to prevent reverse duplicate matches
+matchSchema.pre('save', function(next) {
+  if (this.profile1Id > this.profile2Id) {
+    const temp = this.profile1Id;
+    this.profile1Id = this.profile2Id;
+    this.profile2Id = temp;
+  }
+  next();
+});
 
 module.exports = mongoose.model('Match', matchSchema);

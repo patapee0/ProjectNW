@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "994412669909",
+    "project_id": "projectnetwork-c403e",
+    "storage_bucket": "projectnetwork-c403e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:994412669909:android:84531df931d99321daeb5c",
+        "android_client_info": {
+          "package_name": "com.kkudating.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJ6IlSMQRRzyZtaD44xZM3RF-T6zYCqbU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

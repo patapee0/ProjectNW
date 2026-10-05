@@ -1,0 +1,8 @@
+name = "kku-dating-turn-credentials"
+main = "src/index.js"
+compatibility_date = "2026-09-27"
+
+[vars]
+FIREBASE_PROJECT_ID = "projectnetwork-c403e"
+ALLOWED_ORIGIN = "https://projectnetwork-c403e-cf176.web.app"
+TURN_KEY_ID = "SET_IN_CLOUDFLARE_DASHBOARD"

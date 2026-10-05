@@ -9,6 +9,33 @@ const Match = require('../models/Match');
 const { getIsConnected } = require('../config/db');
 const { memorySwipes, memoryMatches } = require('../config/memoryStore');
 
+// Keep an unmatched pair as a tombstone so old mutual swipes cannot recreate the match.
+router.delete('/match/:userId/:partnerId', async (req, res) => {
+  const { userId, partnerId } = req.params;
+  if (!userId || !partnerId || userId === partnerId) {
+    return res.status(400).json({ error: 'Valid userId and partnerId are required' });
+  }
+
+  const [profile1Id, profile2Id] = [userId, partnerId].sort();
+  try {
+    if (getIsConnected()) {
+      await Match.updateOne(
+        { profile1Id, profile2Id },
+        { $set: { status: 'unmatched' } },
+        { upsert: true }
+      );
+    } else {
+      const existingMatch = memoryMatches.find(match => match.profile1Id === profile1Id && match.profile2Id === profile2Id);
+      if (existingMatch) existingMatch.status = 'unmatched';
+      else memoryMatches.push({ profile1Id, profile2Id, status: 'unmatched', matchedAt: new Date() });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Error unmatching profiles:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/', async (req, res) => {
   const { swiperId, swipedId, action } = req.body;
 
@@ -31,8 +58,12 @@ router.post('/', async (req, res) => {
         const targetIsDemo = swipedId.startsWith('p');
 
         if (reverseSwipe || targetIsDemo) {
+          const p1Id = swiperId < swipedId ? swiperId : swipedId;
+          const p2Id = swiperId < swipedId ? swipedId : swiperId;
+          const previousMatch = await Match.findOne({ profile1Id: p1Id, profile2Id: p2Id });
+          if (previousMatch?.status === 'unmatched') return res.json({ success: true, isMatch: false, unmatched: true });
           try {
-            await Match.create({ profile1Id: swiperId, profile2Id: swipedId });
+            await Match.create({ profile1Id: p1Id, profile2Id: p2Id });
           } catch (dupErr) {}
 
           return res.json({
@@ -51,7 +82,15 @@ router.post('/', async (req, res) => {
         const targetIsDemo = swipedId.startsWith('p');
 
         if (reverseSwipe || targetIsDemo) {
-          memoryMatches.push({ profile1Id: swiperId, profile2Id: swipedId, matchedAt: new Date() });
+          const p1Id = swiperId < swipedId ? swiperId : swipedId;
+          const p2Id = swiperId < swipedId ? swipedId : swiperId;
+          const previousMatch = memoryMatches.find(m => m.profile1Id === p1Id && m.profile2Id === p2Id);
+          if (previousMatch?.status === 'unmatched') return res.json({ success: true, isMatch: false, unmatched: true });
+          
+          if (!memoryMatches.some(m => m.profile1Id === p1Id && m.profile2Id === p2Id)) {
+            memoryMatches.push({ profile1Id: p1Id, profile2Id: p2Id, matchedAt: new Date() });
+          }
+
           return res.json({
             success: true,
             isMatch: true,

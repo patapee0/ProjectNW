@@ -62,21 +62,26 @@ router.post('/register', async (req, res) => {
 
   try {
     if (getIsConnected()) {
-      const profileData = {
-        profileId,
+      const updateData = {
         name,
         age: parseInt(age, 10) || 20,
         faculty,
         bio: bio || 'สวัสดีครับ/ค่ะ นิสิต มข.',
         photoUrl: photo,
-        tags: ['#KKUDating', '#NewStudent'],
-        isVerified: true,
-        media: [{ type: 'image', url: photo }]
       };
+      
+      const newMedia = [{ type: 'image', url: photo }];
 
       await Profile.findOneAndUpdate(
         { profileId },
-        profileData,
+        { 
+          $set: updateData,
+          $setOnInsert: {
+             tags: ['#KKUDating', '#NewStudent'],
+             isVerified: true,
+             media: newMedia
+          }
+        },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
     } else {

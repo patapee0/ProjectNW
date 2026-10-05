@@ -1,0 +1,11 @@
+{
+  "name": "kku-dating-turn-credentials",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -40,6 +40,9 @@
         <button class="nav-btn" id="tab-profile" onclick="switchTab('profile')" title="แก้ไขโปรไฟล์">
           <i class="fa-solid fa-user"></i>
         </button>
+        <button class="nav-btn" id="tab-network" onclick="switchTab('network')" title="Network Inspector (Computer Networking)">
+          <i class="fa-solid fa-chart-line"></i>
+        </button>
         <button class="nav-btn" id="tab-backend" onclick="switchTab('backend')" title="ระบบหลังบ้าน & Database">
           <i class="fa-solid fa-database"></i>
         </button>
@@ -149,6 +152,53 @@
             </button>
           </div>
 
+          <!-- KKU Verification Card -->
+          <div class="profile-card-edit" style="background: rgba(165, 28, 48, 0.15); border: 1px solid rgba(255, 215, 0, 0.4);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <h3 style="font-size: 0.95rem; color: var(--accent-gold); margin: 0;">
+                <i class="fa-solid fa-graduation-cap"></i> ยืนยันตัวตน KKU Student
+              </h3>
+              <span id="kku-verify-badge" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10B981; color: #34D399; font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; font-weight: 600;">
+                <i class="fa-solid fa-circle-check"></i> VERIFIED
+              </span>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
+              ยืนยันบัญชี KKU Mail (@kkumail.com) เพื่อรับเครื่องหมายติ๊กถูกทอง
+            </p>
+            <div style="display: flex; gap: 8px;">
+              <input type="email" id="kku-email-input" class="form-input" placeholder="student.name@kkumail.com" style="flex: 1; font-size: 0.85rem;" value="patapee.s@kkumail.com">
+              <button class="reload-btn" onclick="verifyKkuAccount()" style="padding: 8px 14px; font-size: 0.85rem; margin: 0;">
+                ยืนยัน
+              </button>
+            </div>
+          </div>
+
+          <!-- Social Link Enrichment Card -->
+          <div class="profile-card-edit" style="background: rgba(30, 41, 59, 0.7);">
+            <h3 style="font-size: 0.95rem; color: #FFF; margin-bottom: 8px;">
+              <i class="fa-solid fa-link"></i> เชื่อมต่อ Social Media (Enrich Profile)
+            </h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
+              ดึงความสนใจ (Interests) จาก Facebook / Instagram อัตโนมัติเพื่อเพิ่มโอกาสจับคู่
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <i class="fa-brands fa-facebook" style="font-size: 1.2rem; color: #1877F2;"></i>
+                <input type="text" id="fb-handle-input" class="form-input" placeholder="Facebook Profile URL / Handle" style="flex: 1; font-size: 0.85rem;" value="fb.com/patapee.kk">
+                <button class="reload-btn" onclick="linkSocialAccount('facebook')" style="background: rgba(24, 119, 242, 0.2); border: 1px solid #1877F2; color: #60A5FA; padding: 6px 12px; font-size: 0.8rem; margin: 0;">
+                  เชื่อมต่อ
+                </button>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <i class="fa-brands fa-instagram" style="font-size: 1.2rem; color: #E1306C;"></i>
+                <input type="text" id="ig-handle-input" class="form-input" placeholder="@Instagram_Username" style="flex: 1; font-size: 0.85rem;" value="@beam_kkup">
+                <button class="reload-btn" onclick="linkSocialAccount('instagram')" style="background: rgba(225, 48, 108, 0.2); border: 1px solid #E1306C; color: #F472B6; padding: 6px 12px; font-size: 0.8rem; margin: 0;">
+                  เชื่อมต่อ
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="profile-card-edit" style="text-align: center;">
             <button class="reload-btn" onclick="showRegisterModal()" style="background: rgba(59, 130, 246, 0.2); border: 1px solid var(--super-color); color: #93C5FD; width: 100%; margin-bottom: 8px;">
               <i class="fa-solid fa-user-plus"></i> สร้างโปรไฟล์ใหม่สำหรับเครื่องนี้
@@ -160,7 +210,82 @@
         </div>
       </section>
 
-      <!-- 4. BACKEND & DATABASE EXPLORER VIEW -->
+      <!-- 4. COMPUTER NETWORKING INSPECTOR & MONITOR VIEW -->
+      <section class="view-page" id="view-network">
+        <div class="profile-edit-view">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+            <h2 style="font-size: 1.2rem; color: var(--accent-gold); margin: 0;">
+              <i class="fa-solid fa-chart-line"></i> Network Protocol Monitor
+            </h2>
+            <span id="net-ping-badge" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10B981; color: #34D399; font-size: 0.8rem; padding: 4px 10px; border-radius: 16px; font-weight: 600;">
+              <i class="fa-solid fa-signal"></i> Ping: <span id="rtt-val">--</span> ms
+            </span>
+          </div>
+
+          <!-- Protocol Architecture Cards Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 14px;">
+            <!-- HTTP REST Card -->
+            <div class="profile-card-edit" style="margin: 0; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(96, 165, 250, 0.3);">
+              <div style="font-size: 0.75rem; color: #93C5FD; font-weight: 700; text-transform: uppercase;">HTTP / REST API</div>
+              <div style="font-size: 1.1rem; font-weight: 700; color: #FFF; margin: 4px 0;">TCP Port 3000</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Request-Response Model (Profile, Swipe)</div>
+            </div>
+
+            <!-- WebSocket Card -->
+            <div class="profile-card-edit" style="margin: 0; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(251, 191, 36, 0.3);">
+              <div style="font-size: 0.75rem; color: #FCD34D; font-weight: 700; text-transform: uppercase;">WebSocket (Socket.IO)</div>
+              <div style="font-size: 1.1rem; font-weight: 700; color: #FFF; margin: 4px 0;">Full-Duplex TCP</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Real-time Chat & WebRTC Signaling</div>
+            </div>
+
+            <!-- WebRTC Card -->
+            <div class="profile-card-edit" style="margin: 0; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(52, 211, 153, 0.3);">
+              <div style="font-size: 0.75rem; color: #6EE7B7; font-weight: 700; text-transform: uppercase;">WebRTC Voice Call</div>
+              <div style="font-size: 1.1rem; font-weight: 700; color: #FFF; margin: 4px 0;">UDP P2P Media Stream</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">STUN / ICE Candidate NAT Traversal</div>
+            </div>
+          </div>
+
+          <!-- Network OSI & TCP/IP Layer Info -->
+          <div class="profile-card-edit" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.1);">
+            <h3 style="font-size: 0.95rem; color: var(--accent-gold); margin-bottom: 8px;">
+              <i class="fa-solid fa-layer-group"></i> TCP/IP Protocol Stack Breakdown
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 4px;">
+                <span style="color: #94A3B8;">Layer 7 - Application</span>
+                <span style="color: #A7F3D0; font-family: monospace;">HTTP, WebSocket, WebRTC (SDP)</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 4px;">
+                <span style="color: #94A3B8;">Layer 4 - Transport</span>
+                <span style="color: #A7F3D0; font-family: monospace;">TCP (Reliable) & UDP (Low Latency Voice)</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 4px;">
+                <span style="color: #94A3B8;">Layer 3 - Network</span>
+                <span style="color: #A7F3D0; font-family: monospace;">IP Protocol (Client IP / Server IPv4)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Network Packet Log -->
+          <div class="profile-card-edit" style="background: #090D16; border: 1px solid #1E293B;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3 style="font-size: 0.9rem; color: #FFF; margin: 0;">
+                <i class="fa-solid fa-terminal"></i> Live Network Packet Log Stream
+              </h3>
+              <button onclick="clearPacketLog()" style="background: transparent; border: none; color: #94A3B8; font-size: 0.75rem; cursor: pointer;">
+                Clear Log
+              </button>
+            </div>
+            <div id="packet-log-body" style="height: 140px; overflow-y: auto; font-family: monospace; font-size: 0.78rem; color: #34D399; line-height: 1.5; background: #030712; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+              [NET_INIT] Socket.IO Connected via WebSocket transport<br>
+              [PING_RTT] Handshake delay measured: 12ms<br>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. BACKEND & DATABASE EXPLORER VIEW -->
       <section class="view-page" id="view-backend">
         <div class="backend-explorer-view">
           <h2 style="font-size: 1.2rem; color: var(--accent-gold); margin-bottom: 12px;">
@@ -185,19 +310,32 @@
       <div class="chat-navbar">
         <div class="brand">
           <div class="brand-logo"><i class="fa-solid fa-heart-pulse"></i></div>
-          <span class="brand-title">สร้างโปรไฟล์ KKU Dating</span>
+          <span class="brand-title">KKU Student Verification & Login</span>
         </div>
       </div>
-      <div class="profile-edit-view" style="flex: 1;">
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">
-          ยินดีต้อนรับสู่ KKU Dating! กรุณาสร้างโปรไฟล์สำหรับเครื่องของคุณเพื่อเริ่มเล่นและคุยกับเพื่อนในระบบ
-        </p>
-        <div class="form-group">
-          <label class="form-label">ชื่อที่แสดง (Display Name)</label>
-          <input type="text" id="reg-name" class="form-input" placeholder="เช่น น้องแพรว วิศวะ">
+      <div class="profile-edit-view" style="flex: 1; overflow-y: auto;">
+        <!-- Domain Enforcement Notice -->
+        <div style="background: rgba(165, 28, 48, 0.25); border: 1px solid rgba(255, 215, 0, 0.5); border-radius: 12px; padding: 12px; margin-bottom: 14px;">
+          <div style="color: var(--accent-gold); font-weight: 700; font-size: 0.9rem; margin-bottom: 4px;">
+            🎓 เฉพาะนักศึกษามหาวิทยาลัยขอนแก่นเท่านั้น
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0; line-height: 1.4;">
+            บังคับยืนยันตัวตนด้วยอีเมล <b>@kkumail.com</b> เท่านั้น บัญชีอีเมลอื่นจะไม่สามารถเข้าใช้งานระบบได้
+          </p>
         </div>
+
         <div class="form-group">
-          <label class="form-label">คณะ (KKU Faculty)</label>
+          <label class="form-label" style="color: var(--accent-gold); font-weight: 700;">🎓 อีเมลมหาวิทยาลัยขอนแก่น (@kkumail.com) *</label>
+          <input type="email" id="reg-kku-email" class="form-input" placeholder="student.name@kkumail.com" value="patapee.s@kkumail.com" style="border: 1px solid var(--accent-gold); background: rgba(255, 215, 0, 0.08);">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">ชื่อที่แสดง (Display Name) *</label>
+          <input type="text" id="reg-name" class="form-input" value="ปฐพี (Beam)" placeholder="เช่น น้องแพรว วิศวะ">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">คณะ (KKU Faculty) *</label>
           <select id="reg-faculty" class="form-select">
             <option value="⚙️ คณะวิศวกรรมศาสตร์">⚙️ คณะวิศวกรรมศาสตร์</option>
             <option value="🩺 คณะแพทยศาสตร์">🩺 คณะแพทยศาสตร์</option>
@@ -208,12 +346,29 @@
             <option value="📚 คณะมนุษยศาสตร์และสังคมศาสตร์">📚 คณะมนุษยศาสตร์และสังคมศาสตร์</option>
           </select>
         </div>
+
         <div class="form-group">
           <label class="form-label">คำแนะนำตัว (Bio)</label>
-          <textarea id="reg-bio" class="form-textarea" placeholder="แนะนำตัวสั้นๆ ชวนไปไหน..."></textarea>
+          <textarea id="reg-bio" class="form-textarea" placeholder="แนะนำตัวสั้นๆ ชวนไปไหน...">แวะมาชวนไปกินบิงซูกังสดาล หรือนั่งอ่านหนังสือหอสมุด มข. ได้นะ! ☕️</textarea>
         </div>
+
+        <!-- Social Media Enrichment inside Login -->
+        <div style="background: rgba(30, 41, 59, 0.8); border: 1px solid var(--border-medium); border-radius: 12px; padding: 12px; margin-bottom: 14px;">
+          <div style="font-weight: 700; font-size: 0.85rem; color: #FFF; margin-bottom: 8px;">
+            <i class="fa-solid fa-link"></i> เชื่อมต่อ Social Media (Facebook / IG Profile Link)
+          </div>
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <i class="fa-brands fa-facebook" style="color: #1877F2; font-size: 1.2rem; align-self: center;"></i>
+            <input type="text" id="reg-fb-handle" class="form-input" placeholder="Facebook Profile / Handle" value="fb.com/patapee.kk" style="font-size: 0.85rem;">
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <i class="fa-brands fa-instagram" style="color: #E1306C; font-size: 1.2rem; align-self: center;"></i>
+            <input type="text" id="reg-ig-handle" class="form-input" placeholder="@Instagram_Handle" value="@beam_kkup" style="font-size: 0.85rem;">
+          </div>
+        </div>
+
         <div class="form-group">
-          <label class="form-label">รูปภาพโปรไฟล์ (เลือกรูปภาพจากในเครื่องคอม/มือถือ)</label>
+          <label class="form-label">รูปภาพโปรไฟล์ (เลือกรูปภาพจากเครื่อง)</label>
           <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
             <img id="reg-img-preview" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80" style="width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-gold);">
             <label class="media-upload-box" style="flex: 1; aspect-ratio: auto; height: 50px; flex-direction: row; font-size: 0.85rem; margin-top: 0;">
@@ -223,8 +378,9 @@
             </label>
           </div>
         </div>
-        <button class="reload-btn" onclick="submitRegistration()" style="width: 100%; padding: 14px; font-size: 1rem; margin-top: 10px;">
-          🚀 สร้างโปรไฟล์และเข้าใช้งาน
+
+        <button class="reload-btn" onclick="submitRegistration()" style="width: 100%; padding: 14px; font-size: 1rem; margin-top: 10px; background: linear-gradient(135deg, #A51C30, #8B0000);">
+          🔐 ยืนยันตัวตน KKUMail & เข้าสู่ระบบ
         </button>
       </div>
     </div>
@@ -240,13 +396,66 @@
             <div class="partner-faculty" id="chat-partner-faculty">Faculty</div>
           </div>
         </div>
+        <button class="nav-btn" onclick="startVoiceCall()" style="margin-left: auto; color: #34D399; font-size: 1.1rem; padding: 8px;" title="โทรเสียงผ่านแอป (WebRTC Voice Call)">
+          <i class="fa-solid fa-phone"></i>
+        </button>
+        <button class="nav-btn" onclick="unmatchActivePartner()" style="color: #f87171; font-size: 1.1rem; padding: 8px;" title="ยกเลิกการจับคู่">
+          <i class="fa-solid fa-heart-crack"></i>
+        </button>
       </div>
+
+      <!-- Mutual Contact Reveal Consent Banner -->
+      <div id="mutual-contact-banner" style="background: rgba(30, 41, 59, 0.95); border-bottom: 1px solid rgba(255, 215, 0, 0.3); padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem;">
+        <span style="color: var(--text-muted);"><i class="fa-solid fa-user-shield" style="color: var(--accent-gold);"></i> ข้อมูลติดต่อ (เบอร์/LINE/IG) ซ่อนอยู่</span>
+        <button onclick="requestMutualReveal()" style="background: rgba(255, 215, 0, 0.15); border: 1px solid var(--accent-gold); color: var(--accent-gold); border-radius: 12px; padding: 4px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">
+          <i class="fa-solid fa-eye"></i> ยินยอมเปิดเผยติดต่อ
+        </button>
+      </div>
+
       <div class="messages-body" id="chat-messages-body">
         <!-- Messages rendered by JS -->
       </div>
       <div class="chat-input-bar">
         <input type="text" class="chat-input" id="chat-input-field" placeholder="พิมพ์ข้อความทักทาย..." onkeypress="handleKeyPress(event)">
         <button class="send-btn" onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+      </div>
+    </div>
+
+    <!-- WEBRTC VOICE CALL MODAL OVERLAY -->
+    <div class="conversation-modal" id="voice-call-overlay" style="z-index: 200; background: rgba(15, 23, 42, 0.98); justify-content: space-between; align-items: center; padding: 40px 20px;">
+      <div style="text-align: center; margin-top: 30px;">
+        <div style="font-size: 0.85rem; color: #34D399; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">
+          <i class="fa-solid fa-tower-cell"></i> WebRTC P2P Voice Call
+        </div>
+        <img id="call-partner-img" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80" style="width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 4px solid var(--accent-gold); box-shadow: 0 0 30px rgba(255, 215, 0, 0.4); margin-bottom: 14px;">
+        <h2 id="call-partner-name" style="font-size: 1.4rem; color: #FFF; margin-bottom: 4px;">User</h2>
+        <div id="call-status-text" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">กำลังเชื่อมต่อสายสัญญาณ (Signaling...)...</div>
+
+        <!-- Live Microphone Level Visualizer VU Meter -->
+        <div id="mic-meter-box" style="display: flex; align-items: center; justify-content: center; gap: 4px; height: 24px; margin-top: 10px;">
+          <div style="font-size: 0.75rem; color: #A7F3D0; margin-right: 6px;"><i class="fa-solid fa-microphone"></i> Mic Input:</div>
+          <div class="vu-bar" style="width: 6px; height: 10px; background: #10B981; border-radius: 3px; transition: height 0.1s;"></div>
+          <div class="vu-bar" style="width: 6px; height: 14px; background: #10B981; border-radius: 3px; transition: height 0.1s;"></div>
+          <div class="vu-bar" style="width: 6px; height: 18px; background: #10B981; border-radius: 3px; transition: height 0.1s;"></div>
+          <div class="vu-bar" style="width: 6px; height: 12px; background: #10B981; border-radius: 3px; transition: height 0.1s;"></div>
+          <div class="vu-bar" style="width: 6px; height: 8px; background: #10B981; border-radius: 3px; transition: height 0.1s;"></div>
+        </div>
+      </div>
+
+      <!-- Audio Element for WebRTC Stream -->
+      <audio id="remote-audio" autoplay playsinline style="display: none;"></audio>
+
+      <!-- Call Controls -->
+      <div style="display: flex; gap: 24px; margin-bottom: 24px; align-items: center;">
+        <button onclick="toggleMuteCall()" id="call-mute-btn" style="width: 60px; height: 60px; border-radius: 30px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #FFF; font-size: 1.3rem; cursor: pointer;">
+          <i class="fa-solid fa-microphone"></i>
+        </button>
+        <button onclick="getOrUnlockPlayAudioContext()" id="call-enable-audio-btn" style="padding: 10px 18px; border-radius: 20px; background: rgba(16, 185, 129, 0.2); border: 1px solid #10B981; color: #34D399; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+          <i class="fa-solid fa-volume-high"></i> เปิดเสียงลำโพง
+        </button>
+        <button onclick="endVoiceCall()" style="width: 65px; height: 65px; border-radius: 33px; background: #EF4444; border: none; color: #FFF; font-size: 1.5rem; cursor: pointer; box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);">
+          <i class="fa-solid fa-phone-slash"></i>
+        </button>
       </div>
     </div>
 

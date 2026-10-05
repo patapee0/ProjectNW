@@ -69,18 +69,19 @@ export default function ExploreScreen({ navigation }) {
     });
   }
 
-  function handleSwipeComplete(direction) {
+  async function handleSwipeComplete(direction) {
     if (!currentProfile || !myProfile) return;
 
-    const action = direction === 'left' ? 'pass' : 'like';
+    const action = direction === 'left' ? 'pass' : (direction === 'super' ? 'superlike' : 'like');
 
-    // Emit swipe via Socket.IO
-    emitSwipeAction(myProfile.id, currentProfile.id, action);
-
-    // Check if it should auto-match (demo profiles)
-    if (action === 'like' && currentProfile.id.startsWith('p')) {
-      handleMatch(currentProfile);
-    }
+    // Call API to record swipe and check match
+    import('../services/api').then(({ recordSwipe }) => {
+      recordSwipe(myProfile.id, currentProfile.id, action).then(res => {
+        if (res.success && res.isMatch) {
+          handleMatch(currentProfile);
+        }
+      });
+    });
 
     position.setValue({ x: 0, y: 0 });
     setCardIndex(cardIndex + 1);
